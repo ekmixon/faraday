@@ -164,10 +164,11 @@ class AgentCreationView(CreateMixin, GenericView):
             dict_["name"] for dict_ in workspace_names
         ]
 
-        workspaces = list(
+        workspaces = [
             self._get_workspace(workspace_name)
             for workspace_name in workspace_names
-        )
+        ]
+
 
         agent = super()._perform_create(data, **kwargs)
         agent.workspaces = workspaces
@@ -243,10 +244,11 @@ class AgentWithWorkspacesView(UpdateMixin,
             dict_["name"] for dict_ in workspace_names
         ]
 
-        workspaces = list(
+        workspaces = [
             self._get_workspace(workspace_name)
             for workspace_name in workspace_names
-        )
+        ]
+
 
         super()._update_object(obj, data)
         obj.workspaces = workspaces
@@ -312,8 +314,10 @@ class AgentView(ReadOnlyMultiWorkspacedView):
             errors = {}
             for param_name, param_data in executor_data["args"].items():
                 if executor.parameters_metadata.get(param_name):
-                    val_error = type_validate(executor.parameters_metadata[param_name]['type'], param_data)
-                    if val_error:
+                    if val_error := type_validate(
+                        executor.parameters_metadata[param_name]['type'],
+                        param_data,
+                    ):
                         errors[param_name] = val_error
                 else:
                     errors['message'] = f'"{param_name}" not recognized as an executor argument'

@@ -88,7 +88,7 @@ class InitDB():
                 psql_log_file.write(psql_output)
                 self._check_psql_output(current_psql_output, process_status)
 
-                if hostname.lower() in ['localhost', '127.0.0.1']:
+                if hostname.lower() in {'localhost', '127.0.0.1'}:
                     database_name = os.environ.get("FARADAY_DATABASE_NAME", "faraday")
                     current_psql_output = TemporaryFile()
                     database_name, process_status = self._create_database(database_name, username, current_psql_output)
@@ -245,10 +245,7 @@ class InitDB():
                 hide_input=True
             )
         else:
-            if faraday_user_password:
-                user_password = faraday_user_password
-            else:
-                user_password = self.generate_random_pw(12)
+            user_password = faraday_user_password or self.generate_random_pw(12)
         already_created = False
         fs_uniquifier = str(uuid.uuid4())
         try:
@@ -271,9 +268,17 @@ class InitDB():
             connection = engine.connect()
             connection.execute(statement, **params)
             result = connection.execute(text("""SELECT id, username FROM faraday_user"""))
-            user_id = list(user_tuple[0] for user_tuple in result if user_tuple[1] == "faraday")[0]
+            user_id = [
+                user_tuple[0]
+                for user_tuple in result
+                if user_tuple[1] == "faraday"
+            ][0]
+
             result = connection.execute(text("""SELECT id, name FROM faraday_role"""))
-            role_id = list(role_tuple[0] for role_tuple in result if role_tuple[1] == "admin")[0]
+            role_id = [
+                role_tuple[0] for role_tuple in result if role_tuple[1] == "admin"
+            ][0]
+
             params = {
                 "user_id": user_id,
                 "role_id": role_id
@@ -313,7 +318,7 @@ class InitDB():
                 f'ERROR: {Fore.RED}PostgreSQL service{Fore.WHITE} is not running. Please verify that it is running in port 5432 before executing setup script.')
         elif process_status > 0:
             current_psql_output_file.seek(0)
-            print('ERROR: ' + psql_output)
+            print(f'ERROR: {psql_output}')
 
         if process_status != 0:
             current_psql_output_file.close()  # delete temp file
@@ -372,14 +377,13 @@ class InitDB():
                 connection.commit()
                 connection.close()
             except psycopg2.Error as e:
-                if 'authentication failed' in str(e):
-                    print('{red}ERROR{white}: User {username} already '
-                          'exists'.format(white=Fore.WHITE,
-                                          red=Fore.RED,
-                                          username=username))
-                    sys.exit(1)
-                else:
+                if 'authentication failed' not in str(e):
                     raise
+                print('{red}ERROR{white}: User {username} already '
+                      'exists'.format(white=Fore.WHITE,
+                                      red=Fore.RED,
+                                      username=username))
+                sys.exit(1)
             return_code = 0
         return username, password, return_code
 
@@ -454,12 +458,11 @@ class InitDB():
             print('Please check postgres user permissions.')
             sys.exit(1)
         except ImportError as ex:
-            if 'psycopg2' in str(ex):
-                print(
-                    f'ERROR: Missing python depency {Fore.RED}psycopg2{Fore.WHITE}. Please install it with {Fore.BLUE}pip install psycopg2')
-                sys.exit(1)
-            else:
+            if 'psycopg2' not in str(ex):
                 raise
+            print(
+                f'ERROR: Missing python depency {Fore.RED}psycopg2{Fore.WHITE}. Please install it with {Fore.BLUE}pip install psycopg2')
+            sys.exit(1)
         else:
             alembic_cfg = Config(FARADAY_BASE / 'alembic.ini')
             os.chdir(FARADAY_BASE)

@@ -223,30 +223,27 @@ def _make_vuln_count_property(type_=None, confirmed=None,
         # In this case type_ is supplied from a whitelist so this is safe
         query = query.where(text(f"vulnerability.type = '{type_}'"))
     if confirmed:
-        if db.session.bind.dialect.name == 'sqlite':
-            # SQLite has no "true" expression, we have to use the integer 1
-            # instead
-            query = query.where(text("vulnerability.confirmed = 1"))
-        elif db.session.bind.dialect.name == 'postgresql':
+        if db.session.bind.dialect.name == 'postgresql':
             # I suppose that we're using PostgreSQL, that can't compare
             # booleans with integers
             query = query.where(text("vulnerability.confirmed = true"))
-    elif confirmed is False:
-        if db.session.bind.dialect.name == 'sqlite':
+        elif db.session.bind.dialect.name == 'sqlite':
             # SQLite has no "true" expression, we have to use the integer 1
             # instead
-            query = query.where(text("vulnerability.confirmed = 0"))
-        elif db.session.bind.dialect.name == 'postgresql':
+            query = query.where(text("vulnerability.confirmed = 1"))
+    elif confirmed is False:
+        if db.session.bind.dialect.name == 'postgresql':
             # I suppose that we're using PostgreSQL, that can't compare
             # booleans with integers
             query = query.where(text("vulnerability.confirmed = false"))
 
+        elif db.session.bind.dialect.name == 'sqlite':
+            # SQLite has no "true" expression, we have to use the integer 1
+            # instead
+            query = query.where(text("vulnerability.confirmed = 0"))
     if extra_query:
         query = query.where(text(extra_query))
-    if use_column_property:
-        return column_property(query, deferred=True)
-    else:
-        return query
+    return column_property(query, deferred=True) if use_column_property else query
 
 
 def count_vulnerability_severities(query: str,
@@ -339,12 +336,7 @@ def _make_vuln_generic_count_by_severity(severity, tablename="host"):
             as_scalar()
     )
 
-    vulnerability_generic_count = column_property(
-        vuln_count + vuln_web_count,
-        deferred=True
-    )
-
-    return vulnerability_generic_count
+    return column_property(vuln_count + vuln_web_count, deferred=True)
 
 
 class DatabaseMetadata(db.Model):
@@ -358,26 +350,26 @@ class Metadata(db.Model):
     __abstract__ = True
 
     @declared_attr
-    def creator_id(cls):
+    def creator_id(self):
         return Column(
             Integer,
             ForeignKey('faraday_user.id', ondelete="SET NULL"),
             nullable=True)
 
     @declared_attr
-    def creator(cls):
-        return relationship('User', foreign_keys=[cls.creator_id])
+    def creator(self):
+        return relationship('User', foreign_keys=[self.creator_id])
 
     @declared_attr
-    def update_user_id(cls):
+    def update_user_id(self):
         return Column(
             Integer,
             ForeignKey('faraday_user.id', ondelete="SET NULL"),
             nullable=True)
 
     @declared_attr
-    def update_user(cls):
-        return relationship('User', foreign_keys=[cls.update_user_id])
+    def update_user(self):
+        return relationship('User', foreign_keys=[self.update_user_id])
 
     create_date = Column(DateTime, default=datetime.utcnow)
     update_date = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -583,8 +575,11 @@ class CustomAssociationSet(_AssociationSet):
                     continue
                 if conflict_obj.name == value:
                     continue
-                persisted_conclict_obj = session.query(conflict_obj.__class__).filter_by(name=conflict_obj.name).first()
-                if persisted_conclict_obj:
+                if (
+                    persisted_conclict_obj := session.query(conflict_obj.__class__)
+                    .filter_by(name=conflict_obj.name)
+                    .first()
+                ):
                     self.col.add(persisted_conclict_obj)
             yield self.creator(value, parent_instance)
 
@@ -740,9 +735,12 @@ class CommandObject(db.Model):
 
 
 def _make_created_objects_sum(object_type_filter):
-    where_conditions = [f"command_object.object_type= '{object_type_filter}'"]
-    where_conditions.append("command_object.command_id = command.id")
-    where_conditions.append("command_object.workspace_id = command.workspace_id")
+    where_conditions = [
+        f"command_object.object_type= '{object_type_filter}'",
+        "command_object.command_id = command.id",
+        "command_object.workspace_id = command.workspace_id",
+    ]
+
     return column_property(
         select([func.sum(CommandObject.created)]).
             select_from(table('command_object')).
@@ -757,12 +755,18 @@ def _make_created_objects_sum_joined(object_type_filter, join_filters):
     :param join_filters: Filter for vulnerability fields.
     :return: column property with sum of created objects.
     """
-    where_conditions = [f"command_object.object_type= '{object_type_filter}'"]
-    where_conditions.append("command_object.command_id = command.id")
-    where_conditions.append("vulnerability.id = command_object.object_id ")
-    where_conditions.append("command_object.workspace_id = vulnerability.workspace_id")
-    for attr, filter_value in join_filters.items():
-        where_conditions.append(f"vulnerability.{attr} = {filter_value}")
+    where_conditions = [
+        f"command_object.object_type= '{object_type_filter}'",
+        "command_object.command_id = command.id",
+        "vulnerability.id = command_object.object_id ",
+        "command_object.workspace_id = vulnerability.workspace_id",
+    ]
+
+    where_conditions.extend(
+        f"vulnerability.{attr} = {filter_value}"
+        for attr, filter_value in join_filters.items()
+    )
+
     return column_property(
         select([func.sum(CommandObject.created)])
             .select_from(table('command_object'))
@@ -1082,7 +1086,7 @@ class Service(Metadata):
     @property
     def summary(self):
         if self.version and self.version.lower() != "unknown":
-            version = " (" + self.version + ")"
+            version = f" ({self.version})"
         else:
             version = ""
         return f"({self.port}/{self.protocol}) {self.name}{version or ''}"
@@ -1302,7 +1306,7 @@ class VulnerabilityGeneric(VulnerabilityABC):
         raise ValueError("Vulnerability has no service nor host")
 
     @declared_attr
-    def service(cls):
+    def service(self):
         return relationship('Service', backref=backref("vulnerabilitiesGeneric", cascade="all, delete-orphan"))
 
 
@@ -1310,12 +1314,12 @@ class Vulnerability(VulnerabilityGeneric):
     __tablename__ = None
 
     @declared_attr
-    def service_id(cls):
+    def service_id(self):
         return VulnerabilityGeneric.__table__.c.get('service_id', Column(Integer, db.ForeignKey('service.id'),
                                                                          index=True))
 
     @declared_attr
-    def service(cls):
+    def service(self):
         return relationship('Service', backref=backref("vulnerabilities", cascade="all, delete-orphan"))
 
     @property
@@ -1339,13 +1343,13 @@ class VulnerabilityWeb(VulnerabilityGeneric):
         super().__init__(*args, **kwargs)
 
     @declared_attr
-    def service_id(cls):
+    def service_id(self):
         return VulnerabilityGeneric.__table__.c.get(
             'service_id', Column(Integer, db.ForeignKey('service.id'),
                                  nullable=False))
 
     @declared_attr
-    def service(cls):
+    def service(self):
         return relationship('Service', backref=backref("vulnerabilities_web", cascade="all, delete-orphan"))
 
     @property
@@ -2570,17 +2574,13 @@ class Agent(Metadata):
     @property
     def status(self):
         if self.active:
-            if self.is_online:
-                return 'online'
-            else:
-                return 'offline'
+            return 'online' if self.is_online else 'offline'
         else:
             return 'paused'
 
     @property
     def last_run(self):
-        execs = db.session.query(Executor).filter_by(agent_id=self.id)
-        if execs:
+        if execs := db.session.query(Executor).filter_by(agent_id=self.id):
             _last_run = None
             for exe in execs:
                 if _last_run is None or (exe.last_run is not None and _last_run - exe.last_run <= timedelta()):

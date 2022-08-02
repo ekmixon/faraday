@@ -157,7 +157,6 @@ class TestCascadeDelete:
         session.commit()
 
     @contextmanager
-    # def assert_deletes(self, *objs, should_delete=True):
     def assert_deletes(self, *objs, **kwargs):
         # this could be better with python3 (like in the comment before the function
         # definition)
@@ -167,10 +166,7 @@ class TestCascadeDelete:
         yield
         self.session.commit()
         for (table, id_) in ids:
-            if should_delete:
-                expected_count = 0
-            else:
-                expected_count = 1
+            expected_count = 0 if should_delete else 1
             assert self.session.query(table).filter(
                 table.columns['id'] == id_).count() == expected_count
 

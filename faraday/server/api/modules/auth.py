@@ -151,10 +151,13 @@ def reset_password_token_status(token):
     expired, invalid, user, data = get_token_status(
         token, 'reset', 'RESET_PASSWORD', return_data=True
     )
-    if not invalid and user:
-        if user.password:
-            if not verify_hash(data[1], user.password):
-                invalid = True
+    if (
+        not invalid
+        and user
+        and user.password
+        and not verify_hash(data[1], user.password)
+    ):
+        invalid = True
 
     return expired, invalid, user
 
@@ -162,8 +165,7 @@ def reset_password_token_status(token):
 def validate_strong_password(password: str, password_confirm: str):
     # Regex from faraday change password feature
     r = r'^.*(?=.{8,})(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W]).*$'
-    is_valid = (password_confirm == password and re.match(r, password))
-    return is_valid
+    return (password_confirm == password and re.match(r, password))
 
 
 forgot_password.is_public = True

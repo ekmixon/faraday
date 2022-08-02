@@ -12,8 +12,7 @@ def generate_nginx_config(fqdn, port, ws_port, ssl_certificate, ssl_key, multite
     click.echo(f"- Port: {port}")
     click.echo(f"- Websocket Port: {ws_port}")
     click.echo(f"SSL: certificate [{ssl_certificate}] - key [{ssl_key}]")
-    confirm = click.prompt('Confirm [Y/n]', type=bool)
-    if confirm:
+    if confirm := click.prompt('Confirm [Y/n]', type=bool):
         version = sys.version_info
         static_path = f"/opt/faraday/lib/python{version.major}.{version.minor}/site-packages/faraday/server/www/"
         templates_path = Path(__file__).parent / 'templates'

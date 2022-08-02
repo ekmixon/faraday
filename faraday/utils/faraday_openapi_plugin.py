@@ -107,9 +107,7 @@ class FaradayAPIPlugin(BasePlugin):
         if not endpoint:
             raise APISpecError(f"Could not find endpoint for view {view}")
 
-        # WARNING: Assume 1 rule per view function for now
-        rule = app.url_map._rules_by_endpoint[endpoint][0]
-        return rule
+        return app.url_map._rules_by_endpoint[endpoint][0]
 
     def path_helper(self, operations, *, view, app=None, **kwargs):
         """Path helper that allows passing a Flask view function."""

@@ -42,7 +42,7 @@ def main():
             changelog_file.write(str(folder))
             inner_files = list(filter(lambda elem: elem.suffix == ".json" or elem.name in MD_FILES,
                                       (Path(__file__).parent / str(folder)).iterdir()))
-            if any([file.name == "date.md" for file in inner_files]):
+            if any(file.name == "date.md" for file in inner_files):
                 changelog_file.write(" [")
                 add_md_file(Path(__file__).parent / str(folder) / "date.md", changelog_file)
                 changelog_file.write("]")
@@ -50,7 +50,7 @@ def main():
 
             level_dicts = {level: "" for level in LEVELS}
             for level in LEVELS:
-                if any([file.name == f"{level}.md" for file in inner_files]):
+                if any(file.name == f"{level}.md" for file in inner_files):
                     with (Path(__file__).parent / str(folder) / f"{level}.md").open("r") as level_file:
                         level_dicts[level] = level_file.read()
             for inner_file in filter(lambda elem: elem.suffix == ".json", inner_files):

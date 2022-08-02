@@ -33,11 +33,10 @@ def setup_environment(check_deps=False):
 
 def is_server_running(port):
     pid = daemonize.is_server_running(port)
-    if pid is not None:
-        logger.warning(f"Faraday Server is already running. PID: {pid}")
-        return True
-    else:
+    if pid is None:
         return False
+    logger.warning(f"Faraday Server is already running. PID: {pid}")
+    return True
 
 
 def run_server(args):

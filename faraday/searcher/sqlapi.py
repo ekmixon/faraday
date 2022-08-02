@@ -51,13 +51,12 @@ class SqlApi:
             "workspace_id": self.workspace.id
         }
         if duration:
-            data.update({"duration": duration})
+            data["duration"] = duration
         return data
 
     def close_command(self, command_id, duration):
         data = self._command_info(duration)
-        command = Command.query.get(command_id)
-        if command:
+        if command := Command.query.get(command_id):
             for (key, value) in data.items():
                 setattr(command, key, value)
             self.session.commit()
@@ -100,9 +99,9 @@ class SqlApi:
     def _filter_vulns(self, vulnerability_object, **kwargs):
         vulnerabilities = []
         vulnerabilities_query = self.session. \
-            query(vulnerability_object). \
-            join(vulnerability_object.workspace). \
-            filter(Workspace.name == self.workspace.name)
+                query(vulnerability_object). \
+                join(vulnerability_object.workspace). \
+                filter(Workspace.name == self.workspace.name)
         for attr, value in kwargs.items():
             if attr == 'regex':
                 vulnerabilities_query = vulnerabilities_query.filter(vulnerability_object.name.op('~')(value))
@@ -203,14 +202,12 @@ class SqlApi:
         self.session.commit()
 
     def delete_service(self, service_id):
-        service = Service.query.get(service_id)
-        if service:
+        if service := Service.query.get(service_id):
             self.session.delete(service)
             self.session.commit()
 
     def delete_host(self, host_id):
-        host = Host.query.get(host_id)
-        if host:
+        if host := Host.query.get(host_id):
             self.session.delete(host)
             self.session.commit()
 
@@ -246,11 +243,12 @@ class SqlApi:
         self.session.commit()
 
     def remove_reference(self, reference, object_id):
-        ref = Reference.query.filter(name=reference, workspace_id=self.workspace.id).first()
-        if ref:
-            reference_association = ReferenceVulnerabilityAssociation.query.filter(vulnerability_id=object_id,
-                                                                                   reference_id=ref.id).first()
-            if reference_association:
+        if ref := Reference.query.filter(
+            name=reference, workspace_id=self.workspace.id
+        ).first():
+            if reference_association := ReferenceVulnerabilityAssociation.query.filter(
+                vulnerability_id=object_id, reference_id=ref.id
+            ).first():
                 self.session.delete(reference_association)
                 self.session.commit()
 
@@ -264,9 +262,9 @@ class SqlApi:
         self.session.commit()
 
     def remove_tag(self, reference, object_id):
-        tag = Tag.query.filter(name=reference).first()
-        if tag:
-            tag_object = TagObject.query.filter(object_id=object_id, tag_id=tag.id).first()
-            if tag_object:
+        if tag := Tag.query.filter(name=reference).first():
+            if tag_object := TagObject.query.filter(
+                object_id=object_id, tag_id=tag.id
+            ).first():
                 self.session.delete(tag_object)
                 self.session.commit()

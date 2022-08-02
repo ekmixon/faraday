@@ -28,11 +28,11 @@ def get_mandatory_integer_parameter(query_parameter):
 
 
 def filter_request_args(*filter_out_args):
-    filtered_args = {}
-    for arg in request.args:
-        if arg not in filter_out_args:
-            filtered_args[arg] = request.args.get(arg)
-    return filtered_args
+    return {
+        arg: request.args.get(arg)
+        for arg in request.args
+        if arg not in filter_out_args
+    }
 
 
 def gzipped(f):

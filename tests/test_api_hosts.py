@@ -52,10 +52,13 @@ class TestHostAPI:
 
         Return a dictionary mapping hosts to a list of services
         """
-        ret = {}
-        for (count, host) in zip(SERVICE_COUNT, self.hosts):
-            ret[host] = service_factory.create_batch(
-                count, host=host, workspace=host.workspace, status='open')
+        ret = {
+            host: service_factory.create_batch(
+                count, host=host, workspace=host.workspace, status='open'
+            )
+            for count, host in zip(SERVICE_COUNT, self.hosts)
+        }
+
         session.commit()
         return ret
 
@@ -63,18 +66,18 @@ class TestHostAPI:
         workspace = workspace or self.workspace
         url = API_PREFIX + workspace.name + '/hosts'
         if host is not None:
-            url += '/' + str(host.id)
+            url += f'/{str(host.id)}'
         return url
 
     def services_url(self, host, workspace=None):
-        return self.url(host, workspace) + '/services'
+        return f'{self.url(host, workspace)}/services'
 
     def compare_results(self, hosts, response):
         """
         Compare is the hosts in response are the same that in hosts.
         It only compares the IDs of each one, not other fields"""
-        hosts_in_list = set(host.id for host in hosts)
-        hosts_in_response = set(host['id'] for host in response.json['rows'])
+        hosts_in_list = {host.id for host in hosts}
+        hosts_in_response = {host['id'] for host in response.json['rows']}
         assert hosts_in_list == hosts_in_response
 
     def test_list_retrieves_all_items_from_workspace(self, test_client,
@@ -279,7 +282,7 @@ class TestHostAPI:
         host_factory.create_batch(5, workspace=second_workspace, os='Unix')
 
         session.commit()
-        url = self.url() + '?os=Unix'
+        url = f'{self.url()}?os=Unix'
         res = test_client.get(url)
         assert res.status_code == 200
         self.compare_results(hosts, res)
@@ -346,11 +349,11 @@ class TestHostAPI:
         host_factory.create_batch(5, workspace=second_workspace, os='Unix')
 
         session.commit()
-        res = test_client.get(self.url() + '?os__like=Unix %')
+        res = test_client.get(f'{self.url()}?os__like=Unix %')
         assert res.status_code == 200
         self.compare_results(hosts, res)
 
-        res = test_client.get(self.url() + '?os__ilike=Unix %')
+        res = test_client.get(f'{self.url()}?os__ilike=Unix %')
         assert res.status_code == 200
         self.compare_results(hosts + [case_insensitive_host], res)
 
@@ -398,10 +401,10 @@ class TestHostAPI:
         host_factory.create_batch(5, workspace=workspace)
 
         session.commit()
-        res = test_client.get(self.url() + '?service=IRC')
+        res = test_client.get(f'{self.url()}?service=IRC')
         assert res.status_code == 200
-        shown_hosts_ids = set(obj['id'] for obj in res.json['rows'])
-        expected_host_ids = set(host.id for host in hosts)
+        shown_hosts_ids = {obj['id'] for obj in res.json['rows']}
+        expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
     @pytest.mark.usefixtures('ignore_nplusone')
@@ -423,8 +426,8 @@ class TestHostAPI:
             )
         )
         assert res.status_code == 200
-        shown_hosts_ids = set(obj['id'] for obj in res.json['rows'])
-        expected_host_ids = set(host.id for host in hosts)
+        shown_hosts_ids = {obj['id'] for obj in res.json['rows']}
+        expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
     def test_filter_by_service_port(self, test_client, session, workspace,
@@ -436,10 +439,10 @@ class TestHostAPI:
         host_factory.create_batch(5, workspace=workspace)
 
         session.commit()
-        res = test_client.get(self.url() + '?port=25')
+        res = test_client.get(f'{self.url()}?port=25')
         assert res.status_code == 200
-        shown_hosts_ids = set(obj['id'] for obj in res.json['rows'])
-        expected_host_ids = set(host.id for host in hosts)
+        shown_hosts_ids = {obj['id'] for obj in res.json['rows']}
+        expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
     @pytest.mark.usefixtures('ignore_nplusone')
@@ -459,8 +462,8 @@ class TestHostAPI:
             )
         )
         assert res.status_code == 200
-        shown_hosts_ids = set(obj['id'] for obj in res.json['rows'])
-        expected_host_ids = set(host.id for host in hosts)
+        shown_hosts_ids = {obj['id'] for obj in res.json['rows']}
+        expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
     @pytest.mark.usefixtures('ignore_nplusone')
@@ -505,7 +508,7 @@ class TestHostAPI:
         host_factory.create_batch(5, workspace=workspace)
 
         session.commit()
-        res = test_client.get(self.url() + '?port=invalid_port')
+        res = test_client.get(f'{self.url()}?port=invalid_port')
         assert res.status_code == 200
         assert res.json['count'] == 0
 
@@ -551,7 +554,7 @@ class TestHostAPI:
         host = host_factory.create(ip="longname",
                                    workspace=workspace)
         session.commit()
-        res = test_client.get(self.url() + '?search=ONGNAM')
+        res = test_client.get(f'{self.url()}?search=ONGNAM')
         assert res.status_code == 200
         assert len(res.json['rows']) == 1
         assert res.json['rows'][0]['id'] == host.id
@@ -564,10 +567,10 @@ class TestHostAPI:
             service_factory.create(host=host, name="GOPHER 5",
                                    workspace=workspace)
         session.commit()
-        res = test_client.get(self.url() + '?search=gopher')
+        res = test_client.get(f'{self.url()}?search=gopher')
         assert res.status_code == 200
-        shown_hosts_ids = set(obj['id'] for obj in res.json['rows'])
-        expected_host_ids = set(host.id for host in expected_hosts)
+        shown_hosts_ids = {obj['id'] for obj in res.json['rows']}
+        expected_host_ids = {host.id for host in expected_hosts}
         assert shown_hosts_ids == expected_host_ids
 
     @pytest.mark.usefixtures('host_with_hostnames')
@@ -576,10 +579,10 @@ class TestHostAPI:
         for host in expected_hosts:
             host.set_hostnames(['staging.twitter.com'])
         session.commit()
-        res = test_client.get(self.url() + '?search=twitter')
+        res = test_client.get(f'{self.url()}?search=twitter')
         assert res.status_code == 200
-        shown_hosts_ids = set(obj['id'] for obj in res.json['rows'])
-        expected_host_ids = set(host.id for host in expected_hosts)
+        shown_hosts_ids = {obj['id'] for obj in res.json['rows']}
+        expected_host_ids = {host.id for host in expected_hosts}
         assert shown_hosts_ids == expected_host_ids
 
     def test_host_with_open_vuln_count_verification(self, test_client, session,
@@ -649,9 +652,9 @@ class TestHostAPI:
         }
         res = test_client.put(self.url(host_with_hostnames), data=data)
         assert res.status_code == 200
-        expected = set(["other.com", "test.com"])
+        expected = {"other.com", "test.com"}
         assert set(res.json['hostnames']) == expected
-        assert set(hn.name for hn in host_with_hostnames.hostnames) == expected
+        assert {hn.name for hn in host_with_hostnames.hostnames} == expected
 
     def test_create_host_with_default_gateway(self, test_client):
         raw_data = {
@@ -851,12 +854,12 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
         expected_ids = [host.id for host in
                         sorted(Host.query.all(),
                                key=operator.attrgetter('description'))]
-        res = test_client.get(self.url() + '?sort=description&sort_dir=asc')
+        res = test_client.get(f'{self.url()}?sort=description&sort_dir=asc')
         assert res.status_code == 200
         assert [host['_id'] for host in res.json['data']] == expected_ids
 
         expected_ids.reverse()  # In place list reverse
-        res = test_client.get(self.url() + '?sort=description&sort_dir=desc')
+        res = test_client.get(f'{self.url()}?sort=description&sort_dir=desc')
         assert res.status_code == 200
         assert [host['_id'] for host in res.json['data']] == expected_ids
 
@@ -922,7 +925,10 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
         command = EmptyCommandFactory.create()
         session.commit()
         assert len(command.command_objects) == 0
-        url = self.url(workspace=command.workspace) + '?' + urlencode({'command_id': command.id})
+        url = f'{self.url(workspace=command.workspace)}?' + urlencode(
+            {'command_id': command.id}
+        )
+
 
         res = test_client.post(url, data={
             "ip": "127.0.0.1",
@@ -940,7 +946,10 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
         new_workspace = WorkspaceFactory.create()
         session.commit()
         assert len(command.command_objects) == 0
-        url = self.url(workspace=new_workspace) + '?' + urlencode({'command_id': command.id})
+        url = f'{self.url(workspace=new_workspace)}?' + urlencode(
+            {'command_id': command.id}
+        )
+
 
         res = test_client.post(url, data={
             "ip": "127.0.0.1",
@@ -1027,7 +1036,7 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
         ws = WorkspaceFactory.create()
         session.add(ws)
         hosts_list = []
-        for i in range(0, 10):
+        for _ in range(10):
             host = HostFactory.create(workspace=ws)
             session.add(host)
             service = service_factory.create(workspace=ws, host=host)
@@ -1041,19 +1050,23 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
 
         for host in hosts_list:
             # Each host has 10 vulns
-            for i in range(0, 10):
+            for _ in range(10):
                 vuln_web = choice([True, False])
                 severity = choice(severities)
 
-                if vuln_web:
-                    vuln = vulnerability_web_factory.create(
+                vuln = (
+                    vulnerability_web_factory.create(
                         workspace=ws, service=host.services[0], severity=severity
                     )
-                else:
-                    vuln = vulnerability_factory.create(
-                        host=None, service=host.services[0],
-                        workspace=host.workspace, severity=severity
+                    if vuln_web
+                    else vulnerability_factory.create(
+                        host=None,
+                        service=host.services[0],
+                        workspace=host.workspace,
+                        severity=severity,
                     )
+                )
+
                 session.add(vuln)
 
                 # Increase 1 to number of vulns by severity in the host
@@ -1062,10 +1075,9 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
 
         # Sort vulns_by_severity by number of vulns by severity in every host
         sorted_hosts = sorted(
-            vulns_by_severity.items(),
-            key=lambda host: [vuln_count for vuln_count in host[1]],
-            reverse=True
+            vulns_by_severity.items(), key=lambda host: list(host[1]), reverse=True
         )
+
 
         res = test_client.get(self.url(workspace=ws))
         assert res.status_code == 200
@@ -1085,7 +1097,7 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin):
         ws = WorkspaceFactory.create()
         session.add(ws)
         hosts_ids = []
-        for i in range(0, 10):
+        for i in range(10):
             host = HostFactory.create(workspace=ws, ip=f'127.0.0.{i}')
             session.add(host)
             session.commit()

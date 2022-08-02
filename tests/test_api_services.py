@@ -43,22 +43,22 @@ class TestListServiceView(ReadWriteAPITests):
         res = test_client.get(self.url())
         assert res.status_code == 200
         assert 'services' in res.json
+        object_properties = [
+            u'status',
+            u'protocol',
+            u'description',
+            u'_rev',
+            u'owned',
+            u'owner',
+            u'credentials',
+            u'name',
+            u'version',
+            u'_id',
+            u'metadata'
+        ]
+        expected = set(object_properties)
         for service in res.json['services']:
-            assert set([u'id', u'key', u'value']) == set(service.keys())
-            object_properties = [
-                u'status',
-                u'protocol',
-                u'description',
-                u'_rev',
-                u'owned',
-                u'owner',
-                u'credentials',
-                u'name',
-                u'version',
-                u'_id',
-                u'metadata'
-            ]
-            expected = set(object_properties)
+            assert {u'id', u'key', u'value'} == set(service.keys())
             result = set(service['value'].keys())
             assert expected <= result
 
@@ -250,7 +250,10 @@ class TestListServiceView(ReadWriteAPITests):
         command = EmptyCommandFactory.create(workspace=self.workspace)
         session.commit()
         assert len(command.command_objects) == 0
-        url = self.url(workspace=command.workspace) + '?' + urlencode({'command_id': command.id})
+        url = f'{self.url(workspace=command.workspace)}?' + urlencode(
+            {'command_id': command.id}
+        )
+
         raw_data = {
             "name": "SSH",
             "description": "SSH service",

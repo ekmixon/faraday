@@ -48,8 +48,7 @@ class FaradayUploadedFile(UploadedFile):
     def process_content(self, content, filename=None, content_type=None):
         if isinstance(content, str):
             content = content.encode('utf-8')
-        image_format = imghdr.what(None, h=content[:32])
-        if image_format:
+        if image_format := imghdr.what(None, h=content[:32]):
             content_type = f'image/{image_format}'
             self.generate_thumbnail(content)
         return super().process_content(
@@ -97,8 +96,7 @@ class FaradayUploadedFile(UploadedFile):
 
     @property
     def thumb_url(self):
-        public_url = self['_thumb_public_url']
-        if public_url:
+        if public_url := self['_thumb_public_url']:
             return public_url
         return DepotManager.get_middleware().url_for(self['thumb_path'])
 

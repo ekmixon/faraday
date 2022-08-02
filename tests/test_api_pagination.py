@@ -46,7 +46,7 @@ class PaginationTestsMixin:
                 self.view_class.page_number_parameter_name] = page_number
         if per_page is not None:
             parameters[self.view_class.per_page_parameter_name] = per_page
-        return self.url() + '?' + urlencode(parameters)
+        return f'{self.url()}?{urlencode(parameters)}'
 
     @pytest.mark.parametrize("page_number", [None, 1, 2])
     @pytest.mark.usefixtures('pagination_test_logic')

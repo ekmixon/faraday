@@ -32,12 +32,13 @@ def http_req(method, client, endpoint, json_dict, expected_status_codes, follow_
 
 
 def logout(client, expected_status_codes):
-    res = http_req(method="GET",
-                   client=client,
-                   endpoint="/logout",
-                   json_dict=dict(),
-                   expected_status_codes=expected_status_codes)
-    return res
+    return http_req(
+        method="GET",
+        client=client,
+        endpoint="/logout",
+        json_dict={},
+        expected_status_codes=expected_status_codes,
+    )
 
 
 def get_raw_agent(name="My agent", active=None, token=None, workspaces=None):
@@ -244,7 +245,7 @@ class TestAgentWithWorkspacesAPIGeneric(ReadWriteAPITests):
         url = API_PREFIX + workspace.name + '/' + self.api_endpoint
         if obj is not None:
             id_ = str(obj.id) if isinstance(obj, self.model) else str(obj)
-            url += u'/' + id_
+            url += f'/{id_}'
         return url
 
     def create_raw_agent(self, active=False, token="TOKEN",
@@ -393,10 +394,7 @@ class TestAgentWithWorkspacesAPIGeneric(ReadWriteAPITests):
                 "executor": executor.name
             },
         }
-        res = test_client.post(
-            self.url(agent) + 'run/',
-            json=payload
-        )
+        res = test_client.post(f'{self.url(agent)}run/', json=payload)
         assert res.status_code == 404
 
 

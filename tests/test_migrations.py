@@ -14,10 +14,7 @@ class TestMigrations:
         )
         script = ScriptDirectory.from_config(config)
 
-        alembic_hashes = []
-        for revision in script.walk_revisions():
-            alembic_hashes.append(revision.revision)
-
+        alembic_hashes = [revision.revision for revision in script.walk_revisions()]
         migrations_hashes = []
         for migration in (FARADAY_BASE / 'migrations' / 'versions').glob('*.py'):
             filename = migration.name

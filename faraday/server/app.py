@@ -164,10 +164,8 @@ def register_handlers(app):
                 logger.warn('Invalid authentication token. token invalid after password change')
                 return None
             return user
-        except SignatureExpired:
-            return None  # valid token, but expired
         except BadSignature:
-            return None  # invalid token
+            return None  # valid token, but expired
 
     @app.login_manager.request_loader
     def load_user_from_request(request):

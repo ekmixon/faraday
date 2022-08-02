@@ -58,7 +58,7 @@ class CredentialSchema(AutoSchema):
         if obj.host is not None:
             return obj.host.ip
         else:
-            return obj.service.host.ip + '/' + obj.service.name
+            return f'{obj.service.host.ip}/{obj.service.name}'
 
     class Meta:
         model = Credential
@@ -117,14 +117,16 @@ class CredentialView(FilterAlchemyMixin, ReadWriteWorkspacedView):
     get_joinedloads = [Credential.host, Credential.service, Credential.update_user]
 
     def _envelope_list(self, objects, pagination_metadata=None):
-        credentials = []
-        for credential in objects:
-            credentials.append({
+        credentials = [
+            {
                 'id': credential['_id'],
                 '_id': credential['_id'],
                 'key': credential['_id'],
-                'value': credential
-            })
+                'value': credential,
+            }
+            for credential in objects
+        ]
+
         return {
             'rows': credentials,
         }

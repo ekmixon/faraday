@@ -92,7 +92,7 @@ class TestExportData:
         response_xml = response.data
 
         xml_file_path = TEST_DATA_PATH / \
-                        'faraday_export_data_xml_metasploit.xml'
+                            'faraday_export_data_xml_metasploit.xml'
         with xml_file_path.open('rb') as output:
             xml_file = output.read()
 
@@ -125,7 +125,7 @@ class TestExportData:
         for xpath_data in xpaths_list:
             for xpath, tags_list in xpath_data.items():
                 for tag in tags_list:
-                    full_xpath = xpath + '/' + tag
+                    full_xpath = f'{xpath}/{tag}'
                     if full_xpath == '//host/name':
                         # Check hostnames list order
                         # Sometimes host.set_hostnames() switch the order of the hostnames list sent.

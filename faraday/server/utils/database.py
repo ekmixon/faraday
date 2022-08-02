@@ -21,7 +21,7 @@ def paginate(query, page, page_size):
     """
     Limit results from a query based on pagination parameters
     """
-    if not (page >= 0 and page_size >= 0):
+    if page < 0 or page_size < 0:
         raise Exception("invalid values for pagination (page: %d, page_size: %d)" % (page, page_size))
     return query.limit(page_size).offset(page * page_size)
 
@@ -68,9 +68,9 @@ def apply_search_filter(query, field_to_col_map, free_text_search=None, field_fi
 
         # Add wildcards to both ends of a search term
         if is_direct_filter_search:
-            like_str = u'%' + field_filter.get(attribute) + u'%'
+            like_str = f'%{field_filter.get(attribute)}%'
         elif is_free_text_search:
-            like_str = u'%' + free_text_search + u'%'
+            like_str = f'%{free_text_search}%'
         else:
             continue
 
@@ -92,14 +92,10 @@ def apply_search_filter(query, field_to_col_map, free_text_search=None, field_fi
                 # Ignore filter for this field if the values weren't expected
                 if search_term is None:
                     continue
+            elif is_direct_filter_search and attribute in strict_filter:
+                search_term = column.op('=')(field_filter.get(attribute))
             else:
-                # Strict filtering can be applied for fields. FTS will
-                # ignore this list since its purpose is clearly to
-                # match anything it can find.
-                if is_direct_filter_search and attribute in strict_filter:
-                    search_term = column.op('=')(field_filter.get(attribute))
-                else:
-                    search_term = column.like(like_str)
+                search_term = column.like(like_str)
 
             search_term_sql_filter = concat_or_search_term(search_term_sql_filter, search_term)
 
@@ -164,15 +160,13 @@ def get_count(query, count_col=None):
 
 
 def get_or_create(session, model, defaults=None, **kwargs):
-    instance = session.query(model).filter_by(**kwargs).first()
-    if instance:
+    if instance := session.query(model).filter_by(**kwargs).first():
         return instance, False
-    else:
-        params = dict((k, v) for k, v in kwargs.items() if not isinstance(v, ClauseElement))
-        params.update(defaults or {})
-        instance = model(**params)
-        session.add(instance)
-        return instance, True
+    params = {k: v for k, v in kwargs.items() if not isinstance(v, ClauseElement)}
+    params |= (defaults or {})
+    instance = model(**params)
+    session.add(instance)
+    return instance, True
 
 
 class GroupConcat(expression.FunctionElement):
@@ -186,11 +180,10 @@ def _group_concat_postgresql(element, compiler, **kw):
     else:
         separator = ','
 
-    res = 'array_to_string(array_agg({0}), \'{1}\')'.format(
+    return 'array_to_string(array_agg({0}), \'{1}\')'.format(
         compiler.process(element.clauses.clauses[0]),
         separator,
     )
-    return res
 
 
 class BooleanToIntColumn(expression.FunctionElement):
@@ -232,21 +225,23 @@ def get_unique_fields(session, instance):
         # Vulnerability unique index can't be retrieved via reflection.
         # If the unique index changes we need to update here.
         # A test should fail when the unique index changes
-        unique_constraints = []
-        unique_constraints.append({
-            'column_names': [
-                'name',
-                'description',
-                'type',
-                'host_id',
-                'service_id',
-                'method',
-                'parameter_name',
-                'path',
-                'website',
-                'workspace_id',
-            ]
-        })
+        unique_constraints = [
+            {
+                'column_names': [
+                    'name',
+                    'description',
+                    'type',
+                    'host_id',
+                    'service_id',
+                    'method',
+                    'parameter_name',
+                    'path',
+                    'website',
+                    'workspace_id',
+                ]
+            }
+        ]
+
     if unique_constraints:
         for unique_constraint in unique_constraints:
             yield unique_constraint['column_names']
@@ -294,17 +289,14 @@ def get_conflict_object(session, obj, data, workspace=None):
                 assert related_object.id is not None
                 filter_data.append(
                     table.columns[relations_field] == related_object.id)
-            else:
-                relation_id = data.get(relations_field, None)
-                if relation_id:
-                    filter_data.append(
-                        table.columns[relations_field] == relation_id)
+            elif relation_id := data.get(relations_field, None):
+                filter_data.append(
+                    table.columns[relations_field] == relation_id)
 
-        if filter_data:
-            filter_data = reduce(operator.and_, filter_data)
-            return session.query(klass).filter(filter_data).first()
-        else:
+        if not filter_data:
             return
+        filter_data = reduce(operator.and_, filter_data)
+        return session.query(klass).filter(filter_data).first()
 
 
 UNIQUE_VIOLATION = '23505'

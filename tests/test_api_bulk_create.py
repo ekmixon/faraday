@@ -644,14 +644,14 @@ def test_creates_command_object_on_duplicates(
                                 'path': vuln_web.path,
                                 'website': vuln_web.website,
                             },
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
-        ]
+        ],
+        'command': command_data.copy(),
     }
 
-    data['command'] = command_data.copy()
 
     command2 = new_empty_command(command.workspace)
     bc.bulk_create(command.workspace, command2, data)
@@ -875,7 +875,7 @@ class TestBulkCreateAPI:
             assert command.tool == agent.name
             assert command.command == agent_execution.executor.name
             params = ', '.join([f'{key}={value}' for (key, value) in agent_execution.parameters_data.items()])
-            assert command.params == str(params)
+            assert command.params == params
             assert command.import_source == 'agent'
             command_id = res.json["command_id"]
             assert command.id == command_id
@@ -903,34 +903,33 @@ class TestBulkCreateAPI:
 
             command_dict = {}
             if start_date:
-                command_dict.update({
+                command_dict |= {
                     'tool': agent.name,  # Agent name
                     'command': agent_execution.executor.name,
                     'user': '',
                     'hostname': '',
                     'params': '',
                     'import_source': 'agent',
-                    'start_date': str(start_date)
-                })
+                    'start_date': str(start_date),
+                }
+
             if duration:
-                command_dict.update({
+                command_dict |= {
                     'tool': agent.name,  # Agent name
                     'command': agent_execution.executor.name,
                     'user': '',
                     'hostname': '',
                     'params': '',
                     'import_source': 'agent',
-                    'duration': str(duration)
-                })
+                    'duration': str(duration),
+                }
+
 
             data_kwargs = {
                 "hosts": [host_data],
-                "execution_id": -1
+                "execution_id": -1,
+                "command": command_dict or command_data.copy(),
             }
-            if command_dict:
-                data_kwargs["command"] = command_dict
-            else:
-                data_kwargs["command"] = command_data.copy()
 
             initial_host_count = Host.query.filter(Host.workspace == workspace and Host.creator_id is None).count()
             assert count(Command, workspace) == 1

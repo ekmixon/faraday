@@ -59,14 +59,13 @@ class CustomClient(FlaskClient):
         from flask import _app_ctx_stack
         _app_ctx_stack.top.sqlalchemy_queries = []
 
-        ret = super().open(*args, **kwargs)
         # Now set in flask 1.0
         # if ret.headers.get('content-type') == 'application/json':
         #    try:
         #        ret.json = json.loads(ret.data)
         #    except ValueError:
         #        ret.json = None
-        return ret
+        return super().open(*args, **kwargs)
 
     @property
     def cookies(self):
@@ -290,9 +289,12 @@ def ignore_nplusone(app):
 @pytest.fixture(autouse=True)
 def skip_by_sql_dialect(app, request):
     dialect = db.session.bind.dialect.name
-    if request.node.get_closest_marker('skip_sql_dialect'):
-        if request.node.get_closest_marker('skip_sql_dialect').args[0] == dialect:
-            pytest.skip(f'Skipped dialect is {dialect}')
+    if (
+        request.node.get_closest_marker('skip_sql_dialect')
+        and request.node.get_closest_marker('skip_sql_dialect').args[0]
+        == dialect
+    ):
+        pytest.skip(f'Skipped dialect is {dialect}')
 
 
 @pytest.fixture

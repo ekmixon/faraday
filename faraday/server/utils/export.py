@@ -28,7 +28,7 @@ def export_vulns_to_csv(vulns, custom_fields_columns=None):
         custom_fields_columns = []
     else:
         # Add 'cf_' prefix to custom fields name
-        custom_fields_columns = ['cf_' + cf for cf in custom_fields_columns]
+        custom_fields_columns = [f'cf_{cf}' for cf in custom_fields_columns]
     vuln_headers += custom_fields_columns
 
     headers = vuln_headers + [
@@ -42,7 +42,7 @@ def export_vulns_to_csv(vulns, custom_fields_columns=None):
     writer = csv.DictWriter(buffer, fieldnames=headers)
     writer.writeheader()
 
-    comments_dict = dict()
+    comments_dict = {}
     hosts_ids = set()
     services_ids = set()
     vulns_ids = set()
@@ -193,9 +193,9 @@ def _build_vuln_data(vuln, custom_fields_columns, comments_dict):
     }
     if vuln['custom_fields']:
         for field_name, value in vuln['custom_fields'].items():
-            field_name = 'cf_' + field_name
+            field_name = f'cf_{field_name}'
             if field_name in custom_fields_columns:
-                vuln_data.update({field_name: value})
+                vuln_data[field_name] = value
 
     vuln_data = csv_escape(vuln_data)
     return vuln_data

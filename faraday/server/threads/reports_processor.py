@@ -45,8 +45,7 @@ def process_report(workspace_name: str, command_id: int, file_path: Path,
             logger.info(f"Reports Manager: [Custom plugins folder: "
                         f"[{ReportsSettings.settings.custom_plugins_folder}]"
                         f"[Ignore info severity: {ReportsSettings.settings.ignore_info_severity}]")
-            plugin = plugins_manager.get_plugin(plugin_id)
-            if plugin:
+            if plugin := plugins_manager.get_plugin(plugin_id):
                 try:
                     logger.info(f"Processing report [{file_path}] with plugin ["
                                 f"{plugin.id}]")
@@ -71,9 +70,8 @@ def process_report(workspace_name: str, command_id: int, file_path: Path,
         if plugin_id is None:
             logger.debug("Removing file: %s", file_path)
             os.remove(file_path)
-        else:
-            if faraday_server.delete_report_after_process:
-                os.remove(file_path)
+        elif faraday_server.delete_report_after_process:
+            os.remove(file_path)
         set_end_date = True
         try:
             send_report_data(workspace_name, command_id, vulns_data, user_id, set_end_date)
@@ -99,7 +97,7 @@ class ReportsManager(Thread):
         while not self.__event.is_set():
             try:
                 tpl: Tuple[str, int, Path, int, int] = \
-                    self.upload_reports_queue.get(False, timeout=0.1)
+                        self.upload_reports_queue.get(False, timeout=0.1)
 
                 workspace_name, command_id, file_path, plugin_id, user_id = tpl
 
@@ -117,5 +115,4 @@ class ReportsManager(Thread):
             except Exception as ex:
                 logger.exception(ex)
                 continue
-        else:
-            logger.info("Reports Manager Thread [Stop]")
+        logger.info("Reports Manager Thread [Stop]")

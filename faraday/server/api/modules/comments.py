@@ -83,8 +83,7 @@ class UniqueCommentView(GenericWorkspacedView, CommentCreateMixing):
                     'object': self.schema_class().dump(comment),
                 }
             ))
-        res = super()._perform_create(data, workspace_name)
-        return res
+        return super()._perform_create(data, workspace_name)
 
 
 CommentView.register(comment_api)

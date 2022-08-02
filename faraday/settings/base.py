@@ -80,8 +80,8 @@ class Settings:
         return self.value.get(item, None)
 
     @classproperty
-    def settings(cls):
-        return LOADED_SETTINGS.get(cls.settings_key, cls())
+    def settings(self):
+        return LOADED_SETTINGS.get(self.settings_key, self())
 
     def update(self, new_config=None):
         saved_config, created = get_or_create(db.session, Configuration, key=self.settings_key)

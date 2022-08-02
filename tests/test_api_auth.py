@@ -60,7 +60,7 @@ class TestAgentWebsocketToken:
 
         assert res.status_code == 200
 
-        headers = [('Authorization', 'Token ' + res.json)]
+        headers = [('Authorization', f'Token {res.json}')]
 
         # clean cookies make sure test_client has no session
         test_client.cookie_jar.clear()
@@ -84,7 +84,7 @@ class TestAgentWebsocketToken:
         session.add(agent)
         session.commit()
         assert agent.token
-        headers = [('Authorization', 'Agent ' + agent.token)]
+        headers = [('Authorization', f'Agent {agent.token}')]
         res = test_client.post(
             '/v3/agent_websocket_token',
             headers=headers,

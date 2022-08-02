@@ -26,8 +26,11 @@ def delete_custom_field_wizard():
         print(f'* {custom_field.field_name}')
     print('End of custom fields')
     field_name = click.prompt('Field name')
-    custom_field = db.session.query(CustomFieldsSchema).filter_by(field_name=field_name).first()
-    if custom_field:
+    if (
+        custom_field := db.session.query(CustomFieldsSchema)
+        .filter_by(field_name=field_name)
+        .first()
+    ):
         db.session.delete(custom_field)
         db.session.commit()
     else:

@@ -56,8 +56,7 @@ def output_json(data, code, headers=None):
         headers.update({'Content-Type': content_type})
     else:
         headers = {'Content-Type': content_type}
-    response = flask.make_response(dumped, code, headers)
-    return response
+    return flask.make_response(dumped, code, headers)
 
 
 class InvalidUsage(Exception):
@@ -321,11 +320,7 @@ class GenericView(FlaskView):
         def handle_error(err):  # pylint: disable=unused-variable
             # webargs attaches additional metadata to the `data` attribute
             exc = getattr(err, 'exc')
-            if exc:
-                # Get validations from the ValidationError object
-                messages = exc.messages
-            else:
-                messages = ['Invalid request']
+            messages = exc.messages if exc else ['Invalid request']
             return flask.jsonify({
                 'messages': messages,
             }), 400
@@ -334,11 +329,7 @@ class GenericView(FlaskView):
         def handle_conflict(err):  # pylint: disable=unused-variable
             # webargs attaches additional metadata to the `data` attribute
             exc = getattr(err, 'exc', None) or getattr(err, 'description', None)
-            if exc:
-                # Get validations from the ValidationError object
-                messages = exc.messages
-            else:
-                messages = ['Invalid request']
+            messages = exc.messages if exc else ['Invalid request']
             return flask.jsonify(messages), 409
 
         @app.errorhandler(InvalidUsage)
@@ -526,7 +517,7 @@ class SortableMixin:
             pass
         else:
             for (key, value) in metadata_field.target_schema.fields.items():
-                schema.fields['metadata.' + key] = value
+                schema.fields[f'metadata.{key}'] = value
                 schema.fields[key] = value
 
         try:
@@ -551,9 +542,9 @@ class SortableMixin:
             # It could be something like fields.Method
             raise InvalidUsage(f"Field not in the DB: {order_field}")
 
-        if hasattr(model_class, order_field + '_id'):
+        if hasattr(model_class, f'{order_field}_id'):
             # Ugly hack to allow sorting by a parent
-            field = getattr(model_class, order_field + '_id')
+            field = getattr(model_class, f'{order_field}_id')
         else:
             field = getattr(model_class, order_field)
         sort_dir = flask.request.args.get(self.sort_direction_paremeter_name,
@@ -564,12 +555,11 @@ class SortableMixin:
                 return self.order_field
             raise InvalidUsage(f"Invalid value for sorting direction: {sort_dir}")
         try:
-            if self.order_field is not None:
-                if not isinstance(self.order_field, tuple):
-                    self.order_field = (self.order_field,)
-                return (getattr(field, sort_dir)(),) + self.order_field
-            else:
+            if self.order_field is None:
                 return getattr(field, sort_dir)()
+            if not isinstance(self.order_field, tuple):
+                self.order_field = (self.order_field,)
+            return (getattr(field, sort_dir)(),) + self.order_field
         except NotImplementedError:
             if self.sort_pass_silently:
                 logger.warn(f"field {order_field} doesn't support sorting")
@@ -584,23 +574,22 @@ class PaginatedMixin:
     page_number_parameter_name = 'page'
 
     def _paginate(self, query):
-        if self.per_page_parameter_name in flask.request.args:
+        if self.per_page_parameter_name not in flask.request.args:
+            return super()._paginate(query)
+        try:
+            page = int(flask.request.args.get(
+                self.page_number_parameter_name, 1))
+        except (TypeError, ValueError):
+            flask.abort(404, 'Invalid page number')
 
-            try:
-                page = int(flask.request.args.get(
-                    self.page_number_parameter_name, 1))
-            except (TypeError, ValueError):
-                flask.abort(404, 'Invalid page number')
+        try:
+            per_page = int(flask.request.args[
+                               self.per_page_parameter_name])
+        except (TypeError, ValueError):
+            flask.abort(404, 'Invalid per_page value')
 
-            try:
-                per_page = int(flask.request.args[
-                                   self.per_page_parameter_name])
-            except (TypeError, ValueError):
-                flask.abort(404, 'Invalid per_page value')
-
-            pagination_metadata = query.paginate(page=page, per_page=per_page, error_out=False)
-            return pagination_metadata.items, pagination_metadata
-        return super()._paginate(query)
+        pagination_metadata = query.paginate(page=page, per_page=per_page, error_out=False)
+        return pagination_metadata.items, pagination_metadata
 
 
 class FilterAlchemyMixin:
@@ -664,22 +653,16 @@ class FilterWorkspacedMixin(ListMixin):
         return filter_query
 
     def _filter(self, filters, workspace_name, severity_count=False):
-        marshmallow_params = {'many': True, 'context': {}}
         try:
             filters = FlaskRestlessSchema().load(json.loads(filters)) or {}
-        except (ValidationError, JSONDecodeError) as ex:
+        except ValidationError as ex:
             logger.exception(ex)
             flask.abort(400, "Invalid filters")
 
         workspace = self._get_workspace(workspace_name)
         if 'group_by' not in filters:
-            offset = None
-            limit = None
-            if 'offset' in filters:
-                offset = filters.pop('offset')
-            if 'limit' in filters:
-                limit = filters.pop('limit')  # we need to remove pagination, since
-
+            offset = filters.pop('offset') if 'offset' in filters else None
+            limit = filters.pop('limit') if 'limit' in filters else None
             try:
                 filter_query = self._generate_filter_query(
                     filters,
@@ -694,6 +677,7 @@ class FilterWorkspacedMixin(ListMixin):
                 filter_query = filter_query.limit(limit)
             if offset:
                 filter_query = filter_query.offset(offset)
+            marshmallow_params = {'many': True, 'context': {}}
             objs = self.schema_class(**marshmallow_params).dumps(filter_query.all())
             return json.loads(objs), count
         else:
@@ -706,10 +690,7 @@ class FilterWorkspacedMixin(ListMixin):
                 flask.abort(400, e)
             column_names = ['count'] + [field['field'] for field in filters.get('group_by', [])]
             rows = [list(zip(column_names, row)) for row in filter_query.all()]
-            data = []
-            for row in rows:
-                data.append({field[0]: field[1] for field in row})
-
+            data = [{field[0]: field[1] for field in row} for row in rows]
             return data, len(rows)
 
 
@@ -778,21 +759,15 @@ class FilterMixin(ListMixin):
 
     def _filter(self, filters: str, extra_alchemy_filters: BooleanClauseList = None,
                 severity_count=False, host_vulns=False) -> Tuple[list, int]:
-        marshmallow_params = {'many': True, 'context': {}}
         try:
             filters = FlaskRestlessSchema().load(json.loads(filters)) or {}
-        except (ValidationError, JSONDecodeError) as ex:
+        except ValidationError as ex:
             logger.exception(ex)
             flask.abort(400, "Invalid filters")
 
         if 'group_by' not in filters:
-            offset = None
-            limit = None
-            if 'offset' in filters:
-                offset = filters.pop('offset')
-            if 'limit' in filters:
-                limit = filters.pop('limit')  # we need to remove pagination, since
-
+            offset = filters.pop('offset') if 'offset' in filters else None
+            limit = filters.pop('limit') if 'limit' in filters else None
             try:
                 filter_query = self._generate_filter_query(
                     filters,
@@ -809,6 +784,7 @@ class FilterMixin(ListMixin):
             if offset:
                 filter_query = filter_query.offset(offset)
             count = filter_query.count()
+            marshmallow_params = {'many': True, 'context': {}}
             objs = self.schema_class(**marshmallow_params).dumps(filter_query.all())
             return json.loads(objs), count
         else:
@@ -820,10 +796,7 @@ class FilterMixin(ListMixin):
 
             column_names = ['count'] + [field['field'] for field in filters.get('group_by', [])]
             rows = [list(zip(column_names, row)) for row in filter_query.all()]
-            data = []
-            for row in rows:
-                data.append({field[0]: field[1] for field in row})
-
+            data = [{field[0]: field[1] for field in row} for row in rows]
             return data, len(rows)
 
 
@@ -978,8 +951,7 @@ class CreateMixin:
                 else:
                     raise
             db.session.rollback()
-            conflict_obj = get_conflict_object(db.session, obj, data)
-            if conflict_obj:
+            if conflict_obj := get_conflict_object(db.session, obj, data):
                 flask.abort(409, ValidationError(
                     {
                         'message': 'Existing value',
@@ -1088,8 +1060,9 @@ class CreateWorkspacedMixin(CreateMixin, CommandMixin):
                 raise
             db.session.rollback()
             workspace = self._get_workspace(workspace_name)
-            conflict_obj = get_conflict_object(db.session, obj, data, workspace)
-            if conflict_obj:
+            if conflict_obj := get_conflict_object(
+                db.session, obj, data, workspace
+            ):
                 flask.abort(409, ValidationError(
                     {
                         'message': 'Existing value',
@@ -1172,8 +1145,9 @@ class UpdateMixin:
             workspace = None
             if workspace_name:
                 workspace = db.session.query(Workspace).filter_by(name=workspace_name).first()
-            conflict_obj = get_conflict_object(db.session, obj, data, workspace)
-            if conflict_obj:
+            if conflict_obj := get_conflict_object(
+                db.session, obj, data, workspace
+            ):
                 flask.abort(409, ValidationError(
                     {
                         'message': 'Existing value',
@@ -1533,9 +1507,9 @@ class CountMultiWorkspacedMixin:
             grouped_attr,
             func.count(grouped_attr)
         ) \
-            .join(Workspace) \
-            .group_by(grouped_attr, Workspace.name) \
-            .filter(Workspace.name.in_(workspace_names_list))
+                .join(Workspace) \
+                .group_by(grouped_attr, Workspace.name) \
+                .filter(Workspace.name.in_(workspace_names_list))
 
         # order
         order_by = grouped_attr

@@ -11,18 +11,19 @@ TOKEN = os.environ.get('GH_TOKEN')
 @click.option("--deb-file", required=True, type=click.Path(exists=True,dir_okay=False,resolve_path=True))
 @click.option("--rpm-file", required=True, type=click.Path(exists=True,dir_okay=False,resolve_path=True))
 def main(deb_file,rpm_file):
-    release_data = dict()
-    release_data["tag_name"] = f"v{VERSION}"
-    release_data["name"] = f"v{VERSION}"
-    with open(
+    release_data = {
+        "tag_name": f"v{VERSION}",
+        "name": f"v{VERSION}",
+        "body": Path(
             Path(__file__).parent.parent / 'CHANGELOG' / VERSION / 'white.md'
-    ) as body_file:
-        release_data["body"] = body_file.read()
+        ).read_text(),
+    }
 
     headers = {
         'Accept': 'application/vnd.github.v3+json',
-        'Authorization': 'token ' + TOKEN,
+        'Authorization': f'token {TOKEN}',
     }
+
     res = requests.post(
         "https://api.github.com/repos/infobyte/faraday/releases",
         json=release_data,

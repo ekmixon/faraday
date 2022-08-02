@@ -114,7 +114,7 @@ class TestCheckExecutors:
         session.add(executor)
         session.commit()
         new_params = old_params
-        new_params.update({'param1': True})
+        new_params['param1'] = True
         executors = [
             {'executor_name': executor.name, 'args': new_params}
         ]

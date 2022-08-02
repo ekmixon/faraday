@@ -95,7 +95,7 @@ class TestLogin:
         assert "faraday_session_2" in cookies
         assert res.status_code == 200
 
-        headers = {'Authorization': 'Token ' + res.json}
+        headers = {'Authorization': f'Token {res.json}'}
         ws = factories.WorkspaceFactory.create(name='wonderland')
         session.add(ws)
         session.commit()
@@ -121,7 +121,7 @@ class TestLogin:
 
         assert res.status_code == 200
 
-        headers = {'Authorization': 'Token ' + res.json}
+        headers = {'Authorization': f'Token {res.json}'}
 
         if user:
             user.password = 'SECRET_VERY_SECRET_PASSWORD_TEST'

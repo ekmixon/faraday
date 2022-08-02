@@ -40,7 +40,7 @@ class TestLicensesAPI(ReadWriteAPITests):
         LicenseEnvelopedView.register(app)
         original_res = test_client.get(self.url())
         assert original_res.status_code == 200
-        new_res = test_client.get(API_PREFIX + 'test_envelope_list')
+        new_res = test_client.get(f'{API_PREFIX}test_envelope_list')
         assert new_res.status_code == 200
 
         assert new_res.json == {"object_list": original_res.json}

@@ -40,10 +40,7 @@ def session_query(session, model):
     created and returned.
     """
     if hasattr(model, 'query'):
-        if callable(model.query):
-            query = model.query()
-        else:
-            query = model.query
+        query = model.query() if callable(model.query) else model.query
         if hasattr(query, 'filter'):
             return query
     return session.query(model)
@@ -55,10 +52,14 @@ def get_related_association_proxy_model(attr):
     `attr` must be a relation attribute corresponding to an association proxy.
     """
     prop = attr.remote_attr.property
-    for attribute in ('mapper', 'parent'):
-        if hasattr(prop, attribute):
-            return getattr(prop, attribute).class_
-    return None
+    return next(
+        (
+            getattr(prop, attribute).class_
+            for attribute in ('mapper', 'parent')
+            if hasattr(prop, attribute)
+        ),
+        None,
+    )
 
 
 def primary_key_names(model):
@@ -500,14 +501,13 @@ class QueryBuilder:
             if not isinstance(filt,
                               JunctionFilter) and '__' in filt.fieldname:
                 return create_filt(model, filt)
-            else:
-                if not getattr(filt, 'fieldname', False) or \
+            if not getattr(filt, 'fieldname', False) or \
                         filt.fieldname.split('__')[0] in valid_model_fields:
-                    try:
-                        return create_filt(model, filt)
-                    except AttributeError:
-                        # Can't create the filter since the model or submodel does not have the attribute (usually mapper)
-                        raise AttributeError(f"Foreing field {filt.fieldname.split('__')[0]} not found in submodel")
+                try:
+                    return create_filt(model, filt)
+                except AttributeError:
+                    # Can't create the filter since the model or submodel does not have the attribute (usually mapper)
+                    raise AttributeError(f"Foreing field {filt.fieldname.split('__')[0]} not found in submodel")
             raise AttributeError(f"Field {filt.fieldname} not found in model")
 
         return create_filters
@@ -601,16 +601,14 @@ class QueryBuilder:
                         if relation_model not in joined_models:
                             query = query.join(relation_model, isouter=True)
                         joined_models.add(relation_model)
-                        query = query.order_by(direction())
                     else:
                         field = getattr(model, val.field)
                         direction = getattr(field, val.direction)
-                        query = query.order_by(direction())
-            else:
-                if not search_params.group_by:
-                    pks = primary_key_names(model)
-                    pk_order = (getattr(model, field).asc() for field in pks)
-                    query = query.order_by(*pk_order)
+                    query = query.order_by(direction())
+            elif not search_params.group_by:
+                pks = primary_key_names(model)
+                pk_order = (getattr(model, field).asc() for field in pks)
+                query = query.order_by(*pk_order)
 
         # Group the query.
         if search_params.group_by:
@@ -698,7 +696,4 @@ def search(session, model, search_params, _ignore_order_by=False):
     # False (False, 0, the empty string, the empty list, etc.).
     is_single = search_params.get('single')
     query = create_query(session, model, search_params, _ignore_order_by)
-    if is_single:
-        # may raise NoResultFound or MultipleResultsFound
-        return query.one()
-    return query
+    return query.one() if is_single else query

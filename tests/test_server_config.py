@@ -74,7 +74,7 @@ _regex = re.compile(
 
 
 def isPEP440(arg):
-    return not _regex.match(arg) is None
+    return _regex.match(arg) is not None
 
 
 def test_exists_and_content():

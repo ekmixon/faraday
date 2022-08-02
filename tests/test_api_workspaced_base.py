@@ -54,7 +54,7 @@ class GenericAPITest:
         if obj is not None:
             id_ = str(obj.id) if isinstance(
                 obj, self.model) else str(obj)
-            url += '/' + id_
+            url += f'/{id_}'
         return url
 
 

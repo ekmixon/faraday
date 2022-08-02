@@ -64,27 +64,35 @@ class ActivityFeedView(PaginatedMixin, ReadWriteWorkspacedView):
     order_field = Command.start_date.desc()
 
     def _envelope_list(self, objects, pagination_metadata=None):
-        commands = []
-        for command in objects:
-            commands.append({
+        commands = [
+            {
                 '_id': command['_id'],
                 'user': command['user'],
                 'import_source': command['import_source'],
                 'command': command['command'],
                 'tool': command['tool'],
                 'params': command['params'],
-                'vulnerabilities_count': (command['sum_created_vulnerabilities'] or 0),
+                'vulnerabilities_count': (
+                    command['sum_created_vulnerabilities'] or 0
+                ),
                 'hosts_count': command['sum_created_hosts'] or 0,
                 'services_count': command['sum_created_services'] or 0,
-                'criticalIssue': command['sum_created_vulnerability_critical'] or 0,
+                'criticalIssue': command['sum_created_vulnerability_critical']
+                or 0,
                 'highIssue': command['sum_created_vulnerability_high'] or 0,
                 'mediumIssue': command['sum_created_vulnerability_medium'] or 0,
                 'lowIssue': command['sum_created_vulnerability_low'] or 0,
                 'infoIssue': command['sum_created_vulnerability_info'] or 0,
-                'unclassifiedIssue': command['sum_created_vulnerability_unclassified'] or 0,
+                'unclassifiedIssue': command[
+                    'sum_created_vulnerability_unclassified'
+                ]
+                or 0,
                 'date': command['itime'],
-                'creator': command['creator']
-            })
+                'creator': command['creator'],
+            }
+            for command in objects
+        ]
+
         return {
             'activities': commands,
         }

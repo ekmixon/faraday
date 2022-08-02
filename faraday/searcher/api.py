@@ -19,26 +19,18 @@ class Structure:
 
     @property
     def id(self):
-        if hasattr(self, '_id'):
-            return self._id
-        return None
+        return self._id if hasattr(self, '_id') else None
 
     @property
     def class_signature(self):
-        if hasattr(self, 'type'):
-            return self.type
-        return None
+        return self.type if hasattr(self, 'type') else None
 
     @property
     def parent_id(self):
-        if hasattr(self, 'parent'):
-            return self.parent
-        return None
+        return self.parent if hasattr(self, 'parent') else None
 
     def getMetadata(self):
-        if hasattr(self, 'metadata'):
-            return self.metadata
-        return None
+        return self.metadata if hasattr(self, 'metadata') else None
 
 
 class Api:
@@ -57,7 +49,7 @@ class Api:
                 raise UserWarning('Invalid username or password')
 
     def _url(self, path, is_get=False):
-        url = self.base + 'v3/' + path
+        url = f'{self.base}v3/{path}'
         if self.command_id and 'commands' not in url and not url.endswith('}') and not is_get:
             if '?' in url:
                 url += f'&command_id={self.command_id}'
@@ -121,18 +113,18 @@ class Api:
     def login(self, username, password):
         auth = {"email": username, "password": password}
         try:
-            resp = self.requests.post(self.base + 'login', data=auth, use_json_data=False)
+            resp = self.requests.post(f'{self.base}login', data=auth, use_json_data=False)
             if resp.status_code not in [200, 302]:
                 logger.info("Invalid credentials")
                 return None
             else:
                 cookies = getattr(resp, 'cookies', None)
                 if cookies is not None:
-                    token_response = self.requests.get(self.base + 'v3/token', cookies=cookies)
+                    token_response = self.requests.get(f'{self.base}v3/token', cookies=cookies)
                     if token_response.status_code != 404:
                         token = token_response.json()
                 else:
-                    token = self.requests.get(self.base + 'v3/token').json
+                    token = self.requests.get(f'{self.base}v3/token').json
 
                 header = {'Authorization': f'Token {token}'}
 
@@ -166,7 +158,7 @@ class Api:
             "params": json.dumps(self.params),
         }
         if duration:
-            data.update({"duration": duration})
+            data["duration"] = duration
         return data
 
     def close_command(self, command_id, duration):
@@ -215,10 +207,16 @@ class Api:
         templates = self.fetch_templates()
         filtered_templates = []
         for key, value in kwargs.items():
-            for template in templates:
-                if hasattr(template, key) and \
-                        (getattr(template, key, None) == value or str(getattr(template, key, None)) == value):
-                    filtered_templates.append(template)
+            filtered_templates.extend(
+                template
+                for template in templates
+                if hasattr(template, key)
+                and (
+                    getattr(template, key, None) == value
+                    or str(getattr(template, key, None)) == value
+                )
+            )
+
         return filtered_templates
 
     def update_vulnerability(self, vulnerability):
@@ -226,10 +224,7 @@ class Api:
                                      vulnerability.__dict__, 'vulnerability'))
 
     def update_service(self, service):
-        if isinstance(service.ports, int):
-            service.ports = [service.ports]
-        else:
-            service.ports = []
+        service.ports = [service.ports] if isinstance(service.ports, int) else []
         return Structure(**self._put(self._url(f'ws/{self.workspace}/services/{service.id}'),
                                      service.__dict__, 'service'))
 
@@ -248,12 +243,11 @@ class Api:
 
     @staticmethod
     def parse_args(**kwargs):
-        if len(list(kwargs.keys())) > 0:
+        if list(kwargs.keys()):
             key = list(kwargs.keys())[0]
             value = kwargs.get(key, '')
             item = f'"name":"{key}","op":"eq","val":"{value}"'
-            params = 'filter?q={"filters":[{' + item + '}]}'
-            return params
+            return 'filter?q={"filters":[{' + item + '}]}'
         return ''
 
     @staticmethod
@@ -266,6 +260,5 @@ class Api:
             if add:
                 if value not in field:
                     field.append(value)
-            else:
-                if value in field:
-                    field.remove(value)
+            elif value in field:
+                field.remove(value)

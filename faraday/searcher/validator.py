@@ -29,9 +29,7 @@ def validate_id(id_list, rule_id):
 
 
 def validate_model(model):
-    if model not in ['Host', 'Service', 'Vulnerability']:
-        return False
-    return True
+    return model in ['Host', 'Service', 'Vulnerability']
 
 
 def validate_parent(parent):
@@ -39,15 +37,14 @@ def validate_parent(parent):
 
 
 def validate_fields(model, fields):
-    if model in vfields and len(fields) != 0:
-        for field in fields:
-            if field not in vfields[model]:
-                print(f"ERROR: The field '{field}' doesn't exist in model '{model}'")
-                logger.error(f"The field '{field}' doesn't exist in model '{model}'")
-                return False
-        return True
-    else:
+    if model not in vfields or len(fields) == 0:
         return False
+    for field in fields:
+        if field not in vfields[model]:
+            print(f"ERROR: The field '{field}' doesn't exist in model '{model}'")
+            logger.error(f"The field '{field}' doesn't exist in model '{model}'")
+            return False
+    return True
 
 
 def validate_indexer(indexer, allow_old_option=False):
@@ -67,19 +64,14 @@ def validate_indexer(indexer, allow_old_option=False):
 
 
 def validate_object(obj):
-    if obj == '':
-        return False
-    return validate_indexer(obj, allow_old_option=True)
+    return False if obj == '' else validate_indexer(obj, allow_old_option=True)
 
 
 def validate_conditions(conditions):
     if len(conditions) == 0:
         return False
 
-    for cond in conditions:
-        if not validate_indexer(cond):
-            return False
-    return True
+    return all(validate_indexer(cond) for cond in conditions)
 
 
 def validate_values(values, rule, rule_id):
@@ -87,10 +79,9 @@ def validate_values(values, rule, rule_id):
     _vars = list(set(r))
     keys = []
     for index, item in enumerate(values):
-        if index != 0:
-            if len(values[index - 1]) != len(values[index]):
-                logger.error(f"Each value item must be equal in rule: {rule_id}")
-                return False
+        if index != 0 and len(values[index - 1]) != len(values[index]):
+            logger.error(f"Each value item must be equal in rule: {rule_id}")
+            return False
         keys = item.keys()
 
     for var in _vars:

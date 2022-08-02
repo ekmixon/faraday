@@ -44,9 +44,7 @@ def upgrade():
         with open(LOCAL_CONFIG_FILE, 'w') as configfile:
             config.write(configfile)
 
-        if not tool or (not url and not project_key):
-            pass
-        else:
+        if tool and (url or project_key):
             integration_name = f'{tool}_integration'
             integration_config = {'url': url}
             if project_key and tool == 'jira':
@@ -63,8 +61,9 @@ def upgrade():
 
 def downgrade():
     connection = op.get_bind()
-    query = connection.execute("SELECT key, value FROM configuration where key='jira_integration' or key='servicenow_integration'").first()
-    if query:
+    if query := connection.execute(
+        "SELECT key, value FROM configuration where key='jira_integration' or key='servicenow_integration'"
+    ).first():
         integration_name, integration_config = query
     else:
         integration_config = None

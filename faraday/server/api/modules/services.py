@@ -121,13 +121,11 @@ class ServiceView(FilterAlchemyMixin, ReadWriteWorkspacedView):
     filterset_class = ServiceFilterSet
 
     def _envelope_list(self, objects, pagination_metadata=None):
-        services = []
-        for service in objects:
-            services.append({
-                'id': service['_id'],
-                'key': service['_id'],
-                'value': service
-            })
+        services = [
+            {'id': service['_id'], 'key': service['_id'], 'value': service}
+            for service in objects
+        ]
+
         return {
             'services': services,
         }

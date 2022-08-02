@@ -297,8 +297,7 @@ class HostsView(PaginatedMixin,
           200:
             description: Ok
         """
-        host_ids = flask.request.args.get('hosts', None)
-        if host_ids:
+        if host_ids := flask.request.args.get('hosts', None):
             host_id_list = host_ids.split(',')
         else:
             host_id_list = None
@@ -371,7 +370,7 @@ class HostsView(PaginatedMixin,
         query = super()._filter_query(query)
         search_term = flask.request.args.get('search', None)
         if search_term is not None:
-            like_term = '%' + search_term + '%'
+            like_term = f'%{search_term}%'
             match_ip = Host.ip.ilike(like_term)
             match_service_name = Host.services.any(
                 Service.name.ilike(like_term))
@@ -384,15 +383,15 @@ class HostsView(PaginatedMixin,
         return query
 
     def _envelope_list(self, objects, pagination_metadata=None):
-        hosts = []
-        for index, host in enumerate(objects):
-            # we use index when the filter endpoint uses group by and
-            # the _id was not used in the group by
-            hosts.append({
+        hosts = [
+            {
                 'id': host.get('_id', index),
                 'key': host.get('_id', index),
-                'value': host
-            })
+                'value': host,
+            }
+            for index, host in enumerate(objects)
+        ]
+
         return {
             'rows': hosts,
             'count': (pagination_metadata and pagination_metadata.total

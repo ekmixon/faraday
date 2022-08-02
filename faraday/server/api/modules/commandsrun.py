@@ -38,19 +38,15 @@ class CommandSchema(AutoSchema):
         return obj.start_date.replace(tzinfo=pytz.utc).timestamp() * 1000
 
     def get_duration(self, obj):
-        # obj.start_date can't be None
         if obj.end_date:
             return (obj.end_date - obj.start_date).seconds + ((obj.end_date - obj.start_date).microseconds / 1000000.0)
-        else:
-            if (datetime.datetime.utcnow() - obj.start_date).total_seconds() > 86400:  # 86400 is 1d TODO BY CONFIG
-                return 'Timeout'
-            return 'In progress'
+        if (datetime.datetime.utcnow() - obj.start_date).total_seconds() > 86400:  # 86400 is 1d TODO BY CONFIG
+            return 'Timeout'
+        return 'In progress'
 
     @post_load
     def post_load_set_end_date_with_duration(self, data, **kwargs):
-        # there is a potential bug when updating, the start_date can be changed.
-        duration = data.pop('duration', None)
-        if duration:
+        if duration := data.pop('duration', None):
             data['end_date'] = data['start_date'] + datetime.timedelta(
                 seconds=duration)
         return data
@@ -69,13 +65,11 @@ class CommandView(PaginatedMixin, ReadWriteWorkspacedView):
     order_field = Command.start_date.desc()
 
     def _envelope_list(self, objects, pagination_metadata=None):
-        commands = []
-        for command in objects:
-            commands.append({
-                'id': command['_id'],
-                'key': command['_id'],
-                'value': command
-            })
+        commands = [
+            {'id': command['_id'], 'key': command['_id'], 'value': command}
+            for command in objects
+        ]
+
         return {
             'commands': commands,
         }
@@ -93,23 +87,25 @@ class CommandView(PaginatedMixin, ReadWriteWorkspacedView):
                 application/json:
                   schema: CommandSchema
         """
-        res = []
         query = Command.query.join(Workspace).filter_by(name=workspace_name)
-        for command in query.all():
-            res.append({
+        return [
+            {
                 '_id': command.id,
                 'user': command.user,
                 'import_source': command.import_source,
                 'command': command.command,
                 'tool': command.tool,
                 'params': command.params,
-                'vulnerabilities_count': (command.sum_created_vulnerabilities or 0),
+                'vulnerabilities_count': (
+                    command.sum_created_vulnerabilities or 0
+                ),
                 'hosts_count': command.sum_created_hosts or 0,
                 'services_count': command.sum_created_services or 0,
                 'criticalIssue': command.sum_created_vulnerability_critical or 0,
                 'date': time.mktime(command.start_date.timetuple()) * 1000,
-            })
-        return res
+            }
+            for command in query.all()
+        ]
 
     @route('/last', methods=['GET'])
     def last_command(self, workspace_name):
@@ -121,10 +117,12 @@ class CommandView(PaginatedMixin, ReadWriteWorkspacedView):
             200:
                description: Last executed command or an empty json
         """
-        command = Command.query.join(Workspace).filter_by(name=workspace_name).order_by(
-            Command.start_date.desc()).first()
-        command_obj = {}
-        if command:
+        if (
+            command := Command.query.join(Workspace)
+            .filter_by(name=workspace_name)
+            .order_by(Command.start_date.desc())
+            .first()
+        ):
             command_obj = {
                 '_id': command.id,
                 'user': command.user,
@@ -132,12 +130,17 @@ class CommandView(PaginatedMixin, ReadWriteWorkspacedView):
                 'command': command.command,
                 'tool': command.tool,
                 'params': command.params,
-                'vulnerabilities_count': (command.sum_created_vulnerabilities or 0),
+                'vulnerabilities_count': (
+                    command.sum_created_vulnerabilities or 0
+                ),
                 'hosts_count': command.sum_created_hosts or 0,
                 'services_count': command.sum_created_services or 0,
                 'criticalIssue': command.sum_created_vulnerability_critical or 0,
                 'date': time.mktime(command.start_date.timetuple()) * 1000,
             }
+
+        else:
+            command_obj = {}
         return flask.jsonify(command_obj)
 
 

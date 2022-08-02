@@ -216,8 +216,7 @@ def get_or_create(ws: Workspace, model_class: Type[Metadata], data: dict):
         if not is_unique_constraint_violation(ex):
             raise
         db.session.rollback()
-        conflict_obj = get_conflict_object(db.session, obj, data, ws)
-        if conflict_obj:
+        if conflict_obj := get_conflict_object(db.session, obj, data, ws):
             return (False, conflict_obj)
         else:
             raise
@@ -356,7 +355,7 @@ def _create_service(ws, host, service_data, command=None):
 def _create_vuln(ws, vuln_data, command=None, **kwargs):
     """Create standard or web vulnerabilites"""
     assert 'host' in kwargs or 'service' in kwargs
-    assert not ('host' in kwargs and 'service' in kwargs)
+    assert 'host' not in kwargs or 'service' not in kwargs
 
     vuln_data.pop('_attachments', {})
     references = vuln_data.pop('references', [])
@@ -376,11 +375,7 @@ def _create_vuln(ws, vuln_data, command=None, **kwargs):
         raise ValidationError("unknown type")
     tool = vuln_data.get('tool', '')
     if not tool:
-        if command:
-            vuln_data['tool'] = command.tool
-        else:
-            vuln_data['tool'] = 'Web UI'
-
+        vuln_data['tool'] = command.tool if command else 'Web UI'
     run_date_string = vuln_data.pop('run_date', None)
     if run_date_string:
         try:
@@ -518,7 +513,7 @@ class BulkCreateView(GenericWorkspacedView):
             params = ', '.join([f'{key}={value}' for (key, value) in params_data.items()])
 
             start_date = (data["command"].get("start_date") or agent_execution.command.start_date) \
-                if "command" in data else agent_execution.command.start_date
+                    if "command" in data else agent_execution.command.start_date
 
             end_date = data["command"].get("end_date", None) if "command" in data else None
 
@@ -560,14 +555,19 @@ class BulkCreateView(GenericWorkspacedView):
         if data['hosts']:
             # Create random file
             chars = string.ascii_uppercase + string.digits
-            random_prefix = ''.join(random.choice(chars) for x in range(30))  # nosec
+            random_prefix = ''.join(random.choice(chars) for _ in range(30))
             json_file = f"{random_prefix}.json"
             file_path = CONST_FARADAY_HOME_PATH / 'uploaded_reports' \
-                        / json_file
+                            / json_file
             with file_path.open('w') as output:
                 json.dump(json_data, output)
             logger.info("Create tmp json file for bulk_create: %s", file_path)
-            user_id = flask_login.current_user.id if not flask_login.current_user.is_anonymous else None
+            user_id = (
+                None
+                if flask_login.current_user.is_anonymous
+                else flask_login.current_user.id
+            )
+
             REPORTS_QUEUE.put(
                 (
                     workspace.name,

@@ -71,18 +71,16 @@ class BroadcastServerProtocol(WebSocketServerProtocol):
                     workspace_id = signer.unsign(message['token'], max_age=60)
                 except itsdangerous.BadData as e:
                     self.sendClose()
-                    logger.warning('Invalid websocket token for workspace '
-                                   '{}'.format(message['workspace']))
+                    logger.warning(f"Invalid websocket token for workspace {message['workspace']}")
                     logger.exception(e)
                 else:
                     with get_app().app_context():
                         workspace = Workspace.query.get(int(workspace_id))
                     if workspace.name != message['workspace']:
                         logger.warning(
-                            'Trying to join workspace {} with token of '
-                            'workspace {}. Rejecting.'.format(
-                                message['workspace'], workspace.name
-                            ))
+                            f"Trying to join workspace {message['workspace']} with token of workspace {workspace.name}. Rejecting."
+                        )
+
                         self.sendClose()
                     else:
                         self.factory.join_workspace(
@@ -130,11 +128,11 @@ class BroadcastServerProtocol(WebSocketServerProtocol):
 
                     execution_id = message.get('execution_id', None)
                     assert execution_id is not None
-                    agent_execution = AgentExecution.query.filter(AgentExecution.id == execution_id).first()
-                    if agent_execution:
-
+                    if agent_execution := AgentExecution.query.filter(
+                        AgentExecution.id == execution_id
+                    ).first():
                         if agent_execution.workspace.name not in \
-                                [
+                                    [
                                     workspace.name
                                     for workspace in agent.workspaces
                                 ]:

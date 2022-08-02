@@ -45,7 +45,7 @@ class GenericAPITest:
         if obj is not None:
             id_ = str(getattr(obj, self.lookup_field)) if isinstance(
                 obj, self.model) else str(obj)
-            url += u'/' + id_
+            url += f'/{id_}'
         return url
 
 

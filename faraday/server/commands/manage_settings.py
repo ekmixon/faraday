@@ -31,10 +31,9 @@ def manage(action, json_data, name):
         if not name:
             click.secho(f"You must indicate a settings name to {action}", fg="red")
             sys.exit(1)
-        else:
-            if name not in available_settings:
-                click.secho(f'Invalid settings: {name}', fg='red')
-                return
+        elif name not in available_settings:
+            click.secho(f'Invalid settings: {name}', fg='red')
+            return
         settings = get_settings(name)
         if action == "show":
             click.secho(f"Settings for: {name}", fg="green")
@@ -62,12 +61,12 @@ def manage(action, json_data, name):
                 sys.exit(1)
             else:
                 settings_message = "\n".join([f"{key}: {value}" for key, value in new_settings.items()])
-                confirm = json_data is not None
-                if not confirm:
-                    confirm = click.confirm(f"Do you confirm your changes on {name}?"
-                                            f"\n----------------------"
-                                            f"\n{settings_message}\n", default=True)
-                if confirm:
+                if confirm := json_data is not None or click.confirm(
+                    f"Do you confirm your changes on {name}?"
+                    f"\n----------------------"
+                    f"\n{settings_message}\n",
+                    default=True,
+                ):
                     with get_app().app_context():
                         saved_config, created = get_or_create(db.session, Configuration, key=settings.settings_key)
                         if created:

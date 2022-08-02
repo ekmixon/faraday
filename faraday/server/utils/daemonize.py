@@ -31,10 +31,7 @@ UMASK = 0
 WORKDIR = "/"
 
 # The standard I/O file descriptors are redirected to /dev/null by default.
-if hasattr(os, "devnull"):
-    REDIRECT_TO = os.devnull
-else:
-    REDIRECT_TO = "/dev/null"
+REDIRECT_TO = os.devnull if hasattr(os, "devnull") else "/dev/null"
 
 
 def createDaemon():
@@ -158,13 +155,12 @@ def stop_server(port):
         os.kill(pid, signal.SIGTERM)
         logger.info("Faraday Server stopped successfully")
     except OSError as err:
-        if err.errno == errno.EPERM:
-            logger.error("Couldn't stop Faraday Server. User doesn't"
-                         "have enough permissions")
-            return False
-        else:
+        if err.errno != errno.EPERM:
             raise err
 
+        logger.error("Couldn't stop Faraday Server. User doesn't"
+                     "have enough permissions")
+        return False
     remove_pid_file(port)
     return True
 
@@ -225,9 +221,9 @@ def get_ports_running():
     home_dir = CONST_FARADAY_HOME_PATH
 
     for path in home_dir.iterdir():
-        match = re.match(r"faraday\-server\-port\-(?P<last_name>[0-9]+)\.pid",
-                         path.name)
-        if match:
-            ports.append(int(match.group(1)))
+        if match := re.match(
+            r"faraday\-server\-port\-(?P<last_name>[0-9]+)\.pid", path.name
+        ):
+            ports.append(int(match[1]))
 
     return ports

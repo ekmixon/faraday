@@ -95,13 +95,16 @@ class WorkspaceSchema(AutoSchema):
 
     @post_load
     def post_load_duration(self, data, **kwargs):
-        # Unflatten duration (move data[duration][*] to data[*])
-        duration = data.pop('duration', None)
-        if duration:
+        if duration := data.pop('duration', None):
             data.update(duration)
-        if 'start_date' in data and 'end_date' in data and data['start_date'] and data['end_date']:
-            if data['start_date'] > data['end_date']:
-                raise ValidationError("start_date is bigger than end_date.")
+        if (
+            'start_date' in data
+            and 'end_date' in data
+            and data['start_date']
+            and data['end_date']
+            and data['start_date'] > data['end_date']
+        ):
+            raise ValidationError("start_date is bigger than end_date.")
         return data
 
 
@@ -188,12 +191,9 @@ class WorkspaceView(ReadWriteView, FilterMixin):
         confirmed = self._get_querystring_boolean_field('confirmed')
         active = self._get_querystring_boolean_field('active')
         readonly = self._get_querystring_boolean_field('readonly')
-        query = Workspace.query_with_count(
-                confirmed,
-                active=active,
-                readonly=readonly,
-                workspace_name=object_id)
-        return query
+        return Workspace.query_with_count(
+            confirmed, active=active, readonly=readonly, workspace_name=object_id
+        )
 
     def _get_object(self, object_id, eagerload=False, **kwargs):
         """
@@ -282,9 +282,8 @@ class WorkspaceView(ReadWriteView, FilterMixin):
     def _perform_create(self, data, **kwargs):
         start_date = data.get("start_date", None)
         end_date = data.get("end_date", None)
-        if start_date and end_date:
-            if start_date > end_date:
-                abort(make_response(jsonify(message="Workspace start date can't be greater than the end date"), 400))
+        if start_date and end_date and start_date > end_date:
+            abort(make_response(jsonify(message="Workspace start date can't be greater than the end date"), 400))
 
         scope = data.pop('scope', [])
         workspace = super()._perform_create(data, **kwargs)

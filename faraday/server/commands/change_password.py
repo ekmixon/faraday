@@ -5,8 +5,7 @@ from flask_security.utils import hash_password
 
 def changes_password(username, password):
     with get_app().app_context():
-        user = User.query.filter_by(username=username).first()
-        if user:
+        if user := User.query.filter_by(username=username).first():
             user.password = hash_password(password)
             db.session.add(user)
             db.session.commit()

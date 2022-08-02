@@ -4,6 +4,7 @@ Copyright (C) 2020  Infobyte LLC (http://www.infobytesec.com/)
 See the file 'doc/LICENSE' for the license information
 
 """
+
 import logging
 import re
 import typing
@@ -24,7 +25,7 @@ from faraday.server.utils.search import OPERATORS
 from faraday.server.fields import JSONType
 
 
-VALID_OPERATORS = set(OPERATORS.keys()) - set(['desc', 'asc'])
+VALID_OPERATORS = set(OPERATORS.keys()) - {'desc', 'asc'}
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +75,10 @@ class FlaskRestlessFilterSchema(Schema):
         if '__' in column_name:
             # relation attribute search, example service__port:80
             model_name, column_name = column_name.split('__')
-            model = self.valid_relationship.get(model_name, None)
-            if not model:
+            if model := self.valid_relationship.get(model_name, None):
+                column = getattr(model, column_name)
+            else:
                 raise ValidationError('Invalid Relationship')
-            column = getattr(model, column_name)
         else:
             try:
                 column = getattr(self._model_class(), column_name)
@@ -85,22 +86,24 @@ class FlaskRestlessFilterSchema(Schema):
                 raise ValidationError('Field does not exists')
 
         if not getattr(column, 'type', None) and filter_['op'].lower():
-            if filter_['op'].lower() in ['eq', '==']:
-                if filter_['name'] in ['creator', 'hostnames']:
-                    # make sure that creator and hostname are compared against a string
-                    if not isinstance(filter_['val'], str):
-                        raise ValidationError('Relationship attribute to compare to must be a string')
-                    return [filter_]
+            if filter_['op'].lower() in ['eq', '=='] and filter_['name'] in [
+                'creator',
+                'hostnames',
+            ]:
+                # make sure that creator and hostname are compared against a string
+                if not isinstance(filter_['val'], str):
+                    raise ValidationError('Relationship attribute to compare to must be a string')
+                return [filter_]
             # has and any should be used with fields that has a relationship with other table
             if filter_['op'].lower() in ['has', 'any']:
                 return [filter_]
             else:
                 raise ValidationError('Field does not support in operator')
 
-        if filter_['op'].lower() in ['in', 'not_in']:
-            # in and not_in must be used with Iterable
-            if not isinstance(filter_['val'], Iterable):
-                filter_['val'] = [filter_['val']]
+        if filter_['op'].lower() in ['in', 'not_in'] and not isinstance(
+            filter_['val'], Iterable
+        ):
+            filter_['val'] = [filter_['val']]
 
         try:
             field = converter.column2field(column)
@@ -128,20 +131,23 @@ class FlaskRestlessFilterSchema(Schema):
         except (ParserError, TypeError):
             valid_date = False
 
-        if valid_date and isinstance(field, fields.DateTime):
-            if re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', filter_['val']):
-                # If que have a valid date (not datetime)
-                # then we must search by range to avoid matching with datetime
-                start = parse(filter_['val'])
-                end = (start + datetime.timedelta(hours=23, minutes=59, seconds=59)).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-                start = start.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-                # here we transform the original filter and we add a range
-                # we could try to change search.py generated query, however changing the query will use
-                # postgresql syntax only (type cast)
-                return [
-                        {'name': filter_['name'], 'op': '>=', 'val': start},
-                        {'name': filter_['name'], 'op': '<=', 'val': end},
-                ]
+        if (
+            valid_date
+            and isinstance(field, fields.DateTime)
+            and re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', filter_['val'])
+        ):
+            # If que have a valid date (not datetime)
+            # then we must search by range to avoid matching with datetime
+            start = parse(filter_['val'])
+            end = (start + datetime.timedelta(hours=23, minutes=59, seconds=59)).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+            start = start.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+            # here we transform the original filter and we add a range
+            # we could try to change search.py generated query, however changing the query will use
+            # postgresql syntax only (type cast)
+            return [
+                    {'name': filter_['name'], 'op': '>=', 'val': start},
+                    {'name': filter_['name'], 'op': '<=', 'val': end},
+            ]
 
         if filter_['op'].lower() in ['<', '>', 'ge', 'geq', 'lt']:
             # we check that operators can be only used against date or numbers
@@ -270,8 +276,8 @@ class FilterSchema(Schema):
             an error on PostgreSQL
         """
         if 'group_by' in data and 'order_by' in data:
-            group_by_fields = set(group_field['field'] for group_field in data['group_by'])
-            order_by_fields = set(order_field['field'] for order_field in data['order_by'])
+            group_by_fields = {group_field['field'] for group_field in data['group_by']}
+            order_by_fields = {order_field['field'] for order_field in data['order_by']}
             if not order_by_fields.issubset(group_by_fields):
                 logger.error(f'All order fields ({order_by_fields}) must be in group by {group_by_fields}.')
                 raise ValidationError(f'All order fields ({order_by_fields}) must be in group by {group_by_fields}.')
@@ -300,9 +306,7 @@ class FlaskRestlessSchema(Schema):
         partial: typing.Union[bool, types.StrSequenceOrSet] = None,
         unknown: str = None
     ):
-        many = False
-        if isinstance(data, list):
-            many = True
+        many = isinstance(data, list)
         for schema in self.valid_schemas:
             try:
                 return schema(many=many).load(data)

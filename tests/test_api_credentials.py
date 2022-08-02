@@ -31,22 +31,22 @@ class TestCredentialsAPIGeneric(ReadWriteAPITests):
         res = test_client.get(self.url())
         assert res.status_code == 200
         assert 'rows' in res.json
+        object_properties = [
+            u'_id',
+            u'couchdbid',
+            u'description',
+            u'metadata',
+            u'name',
+            u'owner',
+            u'password',
+            u'username',
+            u'host_ip',
+            u'service_name',
+            u'target'
+        ]
+        expected = set(object_properties)
         for vuln in res.json['rows']:
-            assert set([u'_id', u'id', u'key', u'value']) == set(vuln.keys())
-            object_properties = [
-                u'_id',
-                u'couchdbid',
-                u'description',
-                u'metadata',
-                u'name',
-                u'owner',
-                u'password',
-                u'username',
-                u'host_ip',
-                u'service_name',
-                u'target'
-            ]
-            expected = set(object_properties)
+            assert {u'_id', u'id', u'key', u'value'} == set(vuln.keys())
             result = set(vuln['value'].keys())
             assert expected - result == set()
 
@@ -98,14 +98,17 @@ class TestCredentialsAPIGeneric(ReadWriteAPITests):
         assert res.status_code == 201
         assert res.json['host_ip'] is None
         assert res.json['service_name'] == service.name
-        assert res.json['target'] == service.host.ip + '/' + service.name
+        assert res.json['target'] == f'{service.host.ip}/{service.name}'
 
     def test_get_credentials_for_a_host_backwards_compatibility(
             self, session, test_client, host):
         credential = self.factory.create(host=host, service=None,
                                          workspace=self.workspace)
         session.commit()
-        res = test_client.get(self.url(workspace=credential.workspace) + f'?host_id={credential.host.id}')
+        res = test_client.get(
+            f'{self.url(workspace=credential.workspace)}?host_id={credential.host.id}'
+        )
+
         assert res.status_code == 200
         assert [cred['value']['parent'] for cred in res.json['rows']] == [credential.host.id]
         assert [cred['value']['parent_type'] for cred in res.json['rows']] == [u'Host']
@@ -114,7 +117,10 @@ class TestCredentialsAPIGeneric(ReadWriteAPITests):
         service = ServiceFactory.create()
         credential = self.factory.create(service=service, host=None, workspace=service.workspace)
         session.commit()
-        res = test_client.get(self.url(workspace=credential.workspace) + f'?service={credential.service.id}')
+        res = test_client.get(
+            f'{self.url(workspace=credential.workspace)}?service={credential.service.id}'
+        )
+
         assert res.status_code == 200
         assert [cred['value']['parent'] for cred in res.json['rows']] == [credential.service.id]
         assert [cred['value']['parent_type'] for cred in res.json['rows']] == [u'Service']
@@ -255,11 +261,17 @@ class TestCredentialsAPIGeneric(ReadWriteAPITests):
         ]
 
         # Desc order
-        response = test_client.get(self.url(workspace=second_workspace) + "?sort=target&sort_dir=desc")
+        response = test_client.get(
+            f"{self.url(workspace=second_workspace)}?sort=target&sort_dir=desc"
+        )
+
         assert response.status_code == 200
         assert sorted(credentials_target, reverse=True) == [v['value']['target'] for v in response.json['rows']]
 
         # Asc order
-        response = test_client.get(self.url(workspace=second_workspace) + "?sort=target&sort_dir=asc")
+        response = test_client.get(
+            f"{self.url(workspace=second_workspace)}?sort=target&sort_dir=asc"
+        )
+
         assert response.status_code == 200
         assert sorted(credentials_target) == [v['value']['target'] for v in response.json['rows']]

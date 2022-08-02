@@ -43,9 +43,7 @@ def get_cwe(api, data):
     templates_filtered_by_id = api.filter_templates(id=data)
     templates_filtered_by_name = api.filter_templates(name=data)
     templates = templates_filtered_by_id + templates_filtered_by_name
-    if len(templates) > 0:
-        return templates.pop()
-    return None
+    return templates.pop() if len(templates) > 0 else None
 
 
 def is_same_level(model1, model2):
@@ -74,19 +72,12 @@ def equals(m1, m2, rule):
 
         if f_m1 is not None and f_m2 is not None:
             if field in ['severity', 'owner', 'status']:
-                if f_m1 == f_m2:
-                    ratio = 1.0
-                else:
-                    ratio = min_weight
-
+                ratio = 1.0 if f_m1 == f_m2 else min_weight
             elif isinstance(f_m1, str) or isinstance(f_m2, str):
                 ratio = compare(f_m1.lower().replace('\n', ' '), f_m2.lower().replace('\n', ' '))
 
             elif isinstance(f_m1, bool) and isinstance(f_m2, bool):
-                if f_m1 == f_m2:
-                    ratio = 1.0
-                else:
-                    ratio = 0.0
+                ratio = 1.0 if f_m1 == f_m2 else 0.0
             else:
                 ratio = -1
 
@@ -94,10 +85,7 @@ def equals(m1, m2, rule):
             total_ratio += ratio
             count_fields += 1
 
-    if total_ratio != 0:
-        percent = (total_ratio * 100.0) / count_fields
-    else:
-        percent = 0.0
+    percent = (total_ratio * 100.0) / count_fields if total_ratio != 0 else 0.0
     logger.debug(f"Verify result with {percent:.2f} % evaluating rule {rule['id']}:")
 
     if match and total_ratio >= (threshold * count_fields):
@@ -107,20 +95,14 @@ def equals(m1, m2, rule):
 
 
 def get_model_environment(model, _models):
-    environment = []
-    for md in _models:
-        if is_same_level(model, md):
-            environment.append(md)
-    return environment
+    return [md for md in _models if is_same_level(model, md)]
 
 
 def get_field(obj, field):
     try:
         if field in obj.__dict__ or hasattr(obj, field):
             return getattr(obj, field)
-        if field == 'refs':
-            return getattr(obj, 'references')
-        return None
+        return getattr(obj, 'references') if field == 'refs' else None
     except AttributeError:
         logger.error(f"ERROR: Field {field} is invalid")
         return None
@@ -131,9 +113,8 @@ def set_array(field, value, add=True):
         if add:
             if value not in field:
                 field.append(value)
-        else:
-            if value in field:
-                field.remove(value)
+        elif value in field:
+            field.remove(value)
 
 
 def update_vulnerability(api, vuln, key, value):
@@ -171,7 +152,7 @@ def update_vulnerability(api, vuln, key, value):
         else:
             field = get_field(vuln, key)
 
-        if field is not None and is_custom_field is False:
+        if field is not None and not is_custom_field:
             if isinstance(field, str):
                 setattr(vuln, key, value)
                 logger.info(
@@ -180,12 +161,12 @@ def update_vulnerability(api, vuln, key, value):
                 set_array(field, value, add=to_add)
                 action = f'Adding {value} to {key} list in vulnerability {vuln.name} with id {vuln.id}'
                 if not to_add:
-                    action = 'Removing %s from %s list in vulnerability %s with id %s' % (
-                        value, key, vuln.name, vuln.id)
+                    action = f'Removing {value} from {key} list in vulnerability {vuln.name} with id {vuln.id}'
+
 
                 logger.info(action)
 
-        if field is not None and is_custom_field is True:
+        if field is not None and is_custom_field:
             vuln.custom_fields[key] = value
             logger.info(
                 f"Changing custom field {key} to {value} in vulnerability '{vuln.name}' with id {vuln.id}")
@@ -217,8 +198,8 @@ def update_service(api, service, key, value):
                 set_array(field, value, add=to_add)
                 action = f'Adding {value} to {key} list in service {service.name} with id {service.id}'
                 if not to_add:
-                    action = 'Removing %s from %s list in service %s with id %s' % (
-                        value, key, service.name, service.id)
+                    action = f'Removing {value} from {key} list in service {service.name} with id {service.id}'
+
 
                 logger.info(action)
 
@@ -248,8 +229,8 @@ def update_host(api, host, key, value):
                 set_array(field, value, add=to_add)
                 action = f'Adding {value} to {key} list in host {host.name} with id {host.id}'
                 if not to_add:
-                    action = 'Removing %s from %s list in host %s with id %s' % (
-                        value, key, host.name, host.id)
+                    action = f'Removing {value} from {key} list in host {host.name} with id {host.id}'
+
 
                 logger.info(action)
     api.update_host(host)
@@ -272,9 +253,7 @@ def filter_objects_by_parent(_objects, parent):
     else:
         parents.append(parent)
     for obj in _objects:
-        for p in parents:
-            if p.id == obj.parent_id:
-                objects.append(obj)
+        objects.extend(obj for p in parents if p.id == obj.parent_id)
     return objects
 
 
@@ -287,10 +266,7 @@ def evaluate_condition(model, condition):
             value = 'med'
         value = value.replace('%', ' ')
         if key == 'regex':
-            if re.match(value, model.name) is None:
-                return False
-            return True
-
+            return re.match(value, model.name) is not None
         temp_value = getattr(model, key, None)
         #  fixme
         # if key in model.getMetadata():
@@ -300,26 +276,21 @@ def evaluate_condition(model, condition):
             return False
 
         if isinstance(temp_value, list):
-            if value not in temp_value and str(value) not in temp_value:
-                if not isinstance(value, int):
-                    return False
-                elif int(value) not in temp_value:
-                    return False
-            return True
+            return (
+                value in temp_value
+                or str(value) in temp_value
+                or isinstance(value, int)
+                and int(value) in temp_value
+            )
 
         if isinstance(temp_value, bool):
             if value == 'True' and not temp_value:
                 return False
-            if value == 'False' and temp_value:
-                return False
-            return True
-
+            return value != 'False' or not temp_value
         if isinstance(temp_value, int):
             return value == str(temp_value)
 
-        if value.encode("utf-8") != temp_value.encode("utf-8"):
-            return False
-        return True
+        return value.encode("utf-8") == temp_value.encode("utf-8")
     except Exception as error:
         logger.error(str(error))
         return False
@@ -339,7 +310,7 @@ def get_object(_models, obj):
     if allow_old_option:
         items.remove('--old')
     for model in _models:
-        if all([evaluate_condition(model, cond) for cond in items]):
+        if all(evaluate_condition(model, cond) for cond in items):
             objects.append(model)
             if allow_old_option:
                 break
@@ -348,10 +319,10 @@ def get_object(_models, obj):
 
 def evaluate_conditions(_models, conditions):
     logger.debug("Evaluating conditions")
-    for model in _models:
-        if all([evaluate_condition(model, cond) for cond in conditions]):
-            return True
-    return False
+    return any(
+        all(evaluate_condition(model, cond) for cond in conditions)
+        for model in _models
+    )
 
 
 def can_execute_action(_models, conditions):
@@ -426,9 +397,12 @@ class Searcher:
                     else:
                         objects = self._get_object(rule)
                         objects = self.api.intersection(objects, vulnerabilities)
-                        if objects is not None and len(objects) != 0:
-                            if self._can_execute_action(rule, parent):
-                                self._execute_action(objects, rule)
+                        if (
+                            objects is not None
+                            and len(objects) != 0
+                            and self._can_execute_action(rule, parent)
+                        ):
+                            self._execute_action(objects, rule)
 
         logger.debug("<-- Finish Process vulnerabilities")
 
@@ -451,9 +425,12 @@ class Searcher:
                     else:
                         objects = self._get_object(rule)
                         objects = self.api.intersection(objects, services)
-                        if objects is not None and len(objects) != 0:
-                            if self._can_execute_action(rule, parent):
-                                self._execute_action(objects, rule)
+                        if (
+                            objects is not None
+                            and len(objects) != 0
+                            and self._can_execute_action(rule, parent)
+                        ):
+                            self._execute_action(objects, rule)
 
         logger.debug("<-- Finish Process services")
 
@@ -476,9 +453,12 @@ class Searcher:
                     else:
                         objects = self._get_object(rule)
                         objects = self.api.intersection(objects, hosts)
-                        if objects is not None and len(objects) != 0:
-                            if self._can_execute_action(rule, parent):
-                                self._execute_action(objects, rule)
+                        if (
+                            objects is not None
+                            and len(objects) != 0
+                            and self._can_execute_action(rule, parent)
+                        ):
+                            self._execute_action(objects, rule)
 
         logger.debug("<-- Finish Process Hosts")
 
@@ -511,12 +491,10 @@ class Searcher:
     def _get_parent(self, parent_tag):
         logger.debug("Getting parent")
         parents = self.api.filter_services(id=parent_tag) or \
-                  self.api.filter_services(name=parent_tag) or \
-                  self.api.filter_hosts(id=parent_tag) or \
-                  self.api.filter_hosts(ip=parent_tag)
-        if len(parents) > 0:
-            return parents[0]
-        return None
+                      self.api.filter_services(name=parent_tag) or \
+                      self.api.filter_hosts(id=parent_tag) or \
+                      self.api.filter_hosts(ip=parent_tag)
+        return parents[0] if len(parents) > 0 else None
 
     def _get_object(self, rule):
         logger.debug("Getting object")
@@ -579,9 +557,7 @@ class Searcher:
     def _execute_action(self, objects, rule):
         logger.info(f"Running actions of rule '{rule['id']}' :")
         actions = rule['actions']
-        _objs_value = None
-        if 'object' in rule:
-            _objs_value = rule['object']
+        _objs_value = rule['object'] if 'object' in rule else None
         command_start = datetime.utcnow()
         command_id = self.api.create_command(
             itime=time.mktime(command_start.timetuple()),
@@ -599,12 +575,12 @@ class Searcher:
                 action = action.strip('--')
                 array = action.split(':')
                 command = array[0]
-                expression = str(':').join(array[1:])
+                expression = ':'.join(array[1:])
 
                 if command == 'UPDATE':
                     array_exp = expression.split('=')
                     key = array_exp[0]
-                    value = str('=').join(array_exp[1:])
+                    value = '='.join(array_exp[1:])
                     if object_type in ['Vulnerabilityweb', 'Vulnerability_web', 'Vulnerability']:
                         self._update_vulnerability(obj, key, value)
 
@@ -626,15 +602,13 @@ class Searcher:
                     elif object_type == 'Host':
                         self.api.delete_host(obj.id)
                         logger.info(f"Deleting host '{obj.ip}' with id '{obj.id}':")
+                elif self.mail_notification:
+                    body = f"{object_type} {obj.name} have been modified by rule {rule['id']} at {str(datetime.utcnow())}"
+
+                    self.mail_notification.send_mail(expression, 'Faraday searcher alert', body)
+                    logger.info(f"Sending mail to: '{expression}'")
                 else:
-                    if self.mail_notification:
-                        subject = 'Faraday searcher alert'
-                        body = '%s %s have been modified by rule %s at %s' % (
-                            object_type, obj.name, rule['id'], str(datetime.utcnow()))
-                        self.mail_notification.send_mail(expression, subject, body)
-                        logger.info(f"Sending mail to: '{expression}'")
-                    else:
-                        logger.warn("Searcher needs SMTP configuration to send mails")
+                    logger.warn("Searcher needs SMTP configuration to send mails")
 
         duration = (datetime.utcnow() - command_start).seconds
         self.api.close_command(self.api.command_id, duration)
@@ -684,27 +658,26 @@ class Searcher:
                 except AttributeError:
                     vuln.refs.append(value)
             elif field:
-                if not is_custom_field:
-                    if isinstance(field, str):
-                        setattr(vuln, key, value)
-                        logger.info(
-                            "Changing property %s to %s in vulnerability '%s' with id %s" % (
-                                key, value, vuln.name, vuln.id))
-                    else:
-                        self.api.set_array(field, value, add=to_add, key=key, object=vuln)
-                        action = 'Adding %s to %s list in vulnerability %s with id %s' % (
-                            value, key, vuln.name, vuln.id)
-                        if not to_add:
-                            action = 'Removing %s from %s list in vulnerability %s with id %s' % (
-                                value, key, vuln.name, vuln.id)
-
-                        logger.info(action)
-
-                else:
+                if is_custom_field:
                     vuln.custom_fields[key] = value
                     logger.info(
                         "Changing custom field %s to %s in vulnerability '%s' with id %s" % (
                             key, value, vuln.name, vuln.id))
+
+                elif isinstance(field, str):
+                    setattr(vuln, key, value)
+                    logger.info(
+                        "Changing property %s to %s in vulnerability '%s' with id %s" % (
+                            key, value, vuln.name, vuln.id))
+                else:
+                    self.api.set_array(field, value, add=to_add, key=key, object=vuln)
+                    action = f'Adding {value} to {key} list in vulnerability {vuln.name} with id {vuln.id}'
+
+                    if not to_add:
+                        action = f'Removing {value} from {key} list in vulnerability {vuln.name} with id {vuln.id}'
+
+
+                    logger.info(action)
 
         result = self.api.update_vulnerability(vuln)
         if result is False:
@@ -735,8 +708,8 @@ class Searcher:
                     self.api.set_array(field, value, add=to_add, key=key, object=service)
                     action = f'Adding {value} to {key} list in service {service.name} with id {service.id}'
                     if not to_add:
-                        action = 'Removing %s from %s list in service %s with id %s' % (
-                            value, key, service.name, service.id)
+                        action = f'Removing {value} from {key} list in service {service.name} with id {service.id}'
+
 
                     logger.info(action)
 
@@ -765,8 +738,8 @@ class Searcher:
                     self.api.set_array(field, value, add=to_add, key=key, object=host)
                     action = f'Adding {value} to {key} list in host {host.ip} with id {host.id}'
                     if not to_add:
-                        action = 'Removing %s from %s list in host %s with id %s' % (
-                            value, key, host.ip, host.id)
+                        action = f'Removing {value} from {key} list in host {host.ip} with id {host.id}'
+
 
                     logger.info(action)
         self.api.update_host(host)
@@ -778,20 +751,23 @@ class Searcher:
         logger.debug("--> Start Process models by similarity")
         for index_m1, m1 in zip(list(range(len(_models) - 1)), _models):
             for _, m2 in zip(list(range(index_m1 + 1, len(_models))), _models[index_m1 + 1:]):
-                if m1.id != m2.id and is_same_level(m1, m2):
-                    if equals(m1, m2, rule):
-                        environment = [m1, m2]
-                        _objs_value = None
-                        if 'object' in rule:
-                            _objs_value = rule['object']
-                        _object = get_object(environment, _objs_value)
-                        if _object is not None:
-                            if 'conditions' in rule:
-                                environment = get_model_environment(m2, _models)
-                                if can_execute_action(environment, rule['conditions']):
-                                    self._execute_action(_object, rule)
-                            else:
+                if (
+                    m1.id != m2.id
+                    and is_same_level(m1, m2)
+                    and equals(m1, m2, rule)
+                ):
+                    environment = [m1, m2]
+                    _objs_value = None
+                    if 'object' in rule:
+                        _objs_value = rule['object']
+                    _object = get_object(environment, _objs_value)
+                    if _object is not None:
+                        if 'conditions' in rule:
+                            environment = get_model_environment(m2, _models)
+                            if can_execute_action(environment, rule['conditions']):
                                 self._execute_action(_object, rule)
+                        else:
+                            self._execute_action(_object, rule)
         logger.debug("<-- Finish Process models by similarity")
 
 

@@ -80,7 +80,12 @@ class FaradayCustomField(fields.Field):
                         f"Invalid custom field {key}. Did you forget to add it?"
                     )
                     continue
-                if field_schema.field_type == 'str':
+                if (
+                    field_schema.field_type == 'str'
+                    or field_schema.field_type != 'int'
+                    and field_schema.field_type != 'list'
+                    and field_schema.field_type == 'choice'
+                ):
                     serialized[key] = str(raw_data)
                 elif field_schema.field_type == 'int':
                     try:
@@ -91,8 +96,6 @@ class FaradayCustomField(fields.Field):
                         raise ValidationError("Can not convert custom type to int")
                 elif field_schema.field_type == 'list':
                     serialized[key] = raw_data
-                elif field_schema.field_type == 'choice':
-                    serialized[key] = str(raw_data)
                 else:
                     raise ValidationError("Custom Field datatype not supported yet")
 
@@ -106,18 +109,15 @@ class PrimaryKeyRelatedField(fields.Field):
         super().__init__(*args, **kwargs)
 
     def _serialize(self, value, attr, obj):
-        if self.many:
-            ret = []
-            for item in value:
-                try:
-                    ret.append(getattr(item, self.field_name))
-                except AttributeError:
-                    ret.append(item[self.field_name])
-            return ret
-        else:
-            if value is None:
-                return None
-            return getattr(value, self.field_name)
+        if not self.many:
+            return None if value is None else getattr(value, self.field_name)
+        ret = []
+        for item in value:
+            try:
+                ret.append(getattr(item, self.field_name))
+            except AttributeError:
+                ret.append(item[self.field_name])
+        return ret
 
     def _deserialize(self, value, attr, data, **kwargs):
         raise NotImplementedError("Only dump is implemented for now")
@@ -241,7 +241,7 @@ class NullToBlankString(fields.String):
             value = value.replace('\0', '')  # Postgres does not allow nul 0x00 in the strings.
         elif value is not None:
             raise ValidationError("Deserializing a non string field when expected")
-        if getattr(self, 'allow_none', False) is True and value is None:
+        if getattr(self, 'allow_none', False) and value is None:
             return ''
         output = self._deserialize(value, attr, data, **kwargs)
         self._validate(output)
@@ -348,13 +348,8 @@ class WorkerRuleSchema(Schema):
 
     @post_dump
     def remove_none_values(self, data, **kwargs):
-        actions = []
-        conditions = []
-        for action in data['actions']:
-            actions.append(action['action'])
-        for condition in data['conditions']:
-            conditions.append(condition['condition'])
-
+        actions = [action['action'] for action in data['actions']]
+        conditions = [condition['condition'] for condition in data['conditions']]
         data['actions'] = actions
         data['conditions'] = conditions
 

@@ -126,8 +126,7 @@ def main(branch):
     success = True
     cur_branch = branch
     for dst_branch in branches_to_test:
-        result = check_merge(dst_branch, cur_branch)
-        if result:
+        if result := check_merge(dst_branch, cur_branch):
             logger.info("Merge into %s succeeded!", dst_branch)
         else:
             success = False

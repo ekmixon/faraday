@@ -51,7 +51,7 @@ class TestListCommandView(ReadWriteAPITests):
         assert res.status_code == 200
         assert 'commands' in res.json
         for command in res.json['commands']:
-            assert set([u'id', u'key', u'value']) == set(command.keys())
+            assert {u'id', u'key', u'value'} == set(command.keys())
             object_properties = [
                 u'_id',
                 u'command',
@@ -226,7 +226,7 @@ class TestListCommandView(ReadWriteAPITests):
         commands = []
         in_the_middle_commands = []
         first_command = None
-        for index in range(0, 10):
+        for index in range(10):
 
             command = EmptyCommandFactory.create(workspace=workspace)
             commands.append(command)

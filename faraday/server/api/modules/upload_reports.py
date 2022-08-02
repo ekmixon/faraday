@@ -77,17 +77,14 @@ class UploadReportView(GenericWorkspacedView):
         except ValidationError:
             abort(403)
 
-        report_file = request.files['file']
-
-        if report_file:
-
+        if report_file := request.files['file']:
             chars = string.ascii_uppercase + string.digits
-            random_prefix = ''.join(random.choice(chars) for x in range(12))  # nosec
+            random_prefix = ''.join(random.choice(chars) for _ in range(12))
             raw_report_filename = f'{random_prefix}_{secure_filename(report_file.filename)}'
 
             try:
                 file_path = CONST_FARADAY_HOME_PATH / 'uploaded_reports' \
-                            / raw_report_filename
+                                / raw_report_filename
                 with file_path.open('wb') as output:
                     output.write(report_file.read())
             except AttributeError:
@@ -100,11 +97,7 @@ class UploadReportView(GenericWorkspacedView):
                 logger.info(f"Get plugin for file: {file_path}")
                 plugins_manager = PluginsManager(ReportsSettings.settings.custom_plugins_folder)
                 report_analyzer = ReportAnalyzer(plugins_manager)
-                plugin = report_analyzer.get_plugin(file_path)
-                if not plugin:
-                    logger.info("Could not get plugin for file")
-                    abort(make_response(jsonify(message="Invalid report file"), 400))
-                else:
+                if plugin := report_analyzer.get_plugin(file_path):
                     logger.info(
                         f"Plugin for file: {file_path} Plugin: {plugin.id}"
                     )
@@ -134,6 +127,9 @@ class UploadReportView(GenericWorkspacedView):
                         jsonify(message="ok", command_id=command.id),
                         200
                     )
+                else:
+                    logger.info("Could not get plugin for file")
+                    abort(make_response(jsonify(message="Invalid report file"), 400))
         else:
             abort(make_response(jsonify(message="Missing report file"), 400))
 

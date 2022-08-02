@@ -51,7 +51,7 @@ class TestSearchFilterAPI(ReadWriteAPITests):
     def test_retrieve_one_object_from_logged_user(self, test_client, session, logged_user):
 
         filters = []
-        for n in range(5):
+        for _ in range(5):
             user_filter = SearchFilterFactory.create(creator=logged_user)
             session.add(user_filter)
             filters.append(user_filter)

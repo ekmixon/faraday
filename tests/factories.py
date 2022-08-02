@@ -78,7 +78,9 @@ def FuzzyEndTime():
 
 
 all_unicode = ''.join(chr(i) for i in range(65536))
-UNICODE_LETTERS = ''.join(c for c in all_unicode if unicodedata.category(c) == 'Lu' or unicodedata.category(c) == 'Ll')
+UNICODE_LETTERS = ''.join(
+    c for c in all_unicode if unicodedata.category(c) in ['Lu', 'Ll']
+)
 
 
 class FaradayFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -113,14 +115,14 @@ class UserFactory(FaradayFactory):
                 # A list of roles were passed in, use them
                 self['roles'] = self.get('roles', [])
                 for role in extracted:
-                    role = role if not isinstance(role, str) else get_role(role)
+                    role = get_role(role) if isinstance(role, str) else role
                     self['roles'].append(role.name)
             else:
                 self.roles.append(get_role('client'))
         elif extracted:
             # A list of groups were passed in, use them
             for role in extracted:
-                role = role if not isinstance(role, str) else get_role(role)
+                role = get_role(role) if isinstance(role, str) else role
                 self.roles.append(role)
         else:
             self.roles.append(get_role('client'))
@@ -271,12 +273,13 @@ class HasParentHostOrService(WorkspaceObjectFactory):
 
     @classmethod
     def attributes(cls, create=False, extra=None):
-        if extra:
-            if ('host' in extra and 'service' not in extra) or \
-                    ('service' in extra and 'host' not in extra):
-                raise ValueError('You should pass both service and host and '
-                                 'set one of them to None to prevent random '
-                                 'stuff to happen')
+        if extra and (
+            ('host' in extra and 'service' not in extra)
+            or ('service' in extra and 'host' not in extra)
+        ):
+            raise ValueError('You should pass both service and host and '
+                             'set one of them to None to prevent random '
+                             'stuff to happen')
         return super().attributes(create, extra)
 
     @classmethod

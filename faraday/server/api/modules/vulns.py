@@ -104,10 +104,7 @@ class CustomMetadataSchema(MetadataSchema):
     creator = fields.Method('get_creator', dump_only=True)
 
     def get_creator(self, obj):
-        if obj.tool:
-            return obj.tool
-        else:
-            return obj.creator_command_tool or 'Web UI'
+        return obj.tool or obj.creator_command_tool or 'Web UI'
 
 
 class CVESchema(AutoSchema):
@@ -215,17 +212,13 @@ class VulnerabilitySchema(AutoSchema):
         return 'Service' if obj.service_id is not None else 'Host'
 
     def get_status(self, obj):
-        if obj.status == 'open':
-            return 'opened'
-        return obj.status
+        return 'opened' if obj.status == 'open' else obj.status
 
     def get_issuetracker(self, obj):
         return {}
 
     def load_status(self, value):
-        if value == 'opened':
-            return 'open'
-        return value
+        return 'open' if value == 'opened' else value
 
     def load_type(self, value):
         if value == 'Vulnerability':
@@ -246,9 +239,7 @@ class VulnerabilitySchema(AutoSchema):
 
     @post_load
     def post_load_impact(self, data, **kwargs):
-        # Unflatten impact (move data[impact][*] to data[*])
-        impact = data.pop('impact', None)
-        if impact:
+        if impact := data.pop('impact', None):
             data.update(impact)
         return data
 
@@ -345,8 +336,7 @@ class TypeFilter(Filter):
 
 class CreatorFilter(Filter):
     def filter(self, query, model, attr, value):
-        return query.filter(model.creator_command_tool.ilike(
-            '%' + value + '%'))
+        return query.filter(model.creator_command_tool.ilike(f'%{value}%'))
 
 
 class ServiceFilter(Filter):
@@ -384,7 +374,7 @@ class CustomILike(operators.Operator):
 
     def __call__(self, query, model, attr, value):
         column = getattr(model, attr)
-        condition = column.ilike('%' + value + '%')
+        condition = column.ilike(f'%{value}%')
         return query.filter(condition)
 
 
@@ -500,9 +490,7 @@ class VulnerabilityView(PaginatedMixin,
         super()._validate_uniqueness(obj, object_id, unique_fields)
 
     def _get_schema_instance(self, route_kwargs, **kwargs):
-        schema = super()._get_schema_instance(route_kwargs, **kwargs)
-
-        return schema
+        return super()._get_schema_instance(route_kwargs, **kwargs)
 
     def _perform_create(self, data, **kwargs):
         data = self._parse_data(self._get_schema_instance(kwargs),
@@ -538,10 +526,7 @@ class VulnerabilityView(PaginatedMixin,
         db.session.flush()
 
         if not obj.tool:
-            if obj.creator_command_tool:
-                obj.tool = obj.creator_command_tool
-            else:
-                obj.tool = "Web UI"
+            obj.tool = obj.creator_command_tool or "Web UI"
         db.session.commit()
         self._process_attachments(obj, attachments)
         return obj
@@ -627,7 +612,7 @@ class VulnerabilityView(PaginatedMixin,
         search_term = flask.request.args.get('search', None)
         if search_term is not None:
             # TODO migration: add more fields to free text search
-            like_term = '%' + search_term + '%'
+            like_term = f'%{search_term}%'
             match_name = VulnerabilityGeneric.name.ilike(like_term)
             match_desc = VulnerabilityGeneric.description.ilike(like_term)
             query = query.filter(match_name | match_desc)
@@ -653,15 +638,15 @@ class VulnerabilityView(PaginatedMixin,
         return self.schema_class_dict['VulnerabilityWeb']
 
     def _envelope_list(self, objects, pagination_metadata=None):
-        vulns = []
-        for index, vuln in enumerate(objects):
-            # we use index when the filter endpoint uses group by and
-            # the _id was not used in the group by
-            vulns.append({
+        vulns = [
+            {
                 'id': vuln.get('_id', index),
                 'key': vuln.get('_id', index),
-                'value': vuln
-            })
+                'value': vuln,
+            }
+            for index, vuln in enumerate(objects)
+        ]
+
         return {
             'vulnerabilities': vulns,
             'count': (pagination_metadata.total
@@ -720,11 +705,17 @@ class VulnerabilityView(PaginatedMixin,
             description: Ok
         """
 
-        vuln_workspace_check = db.session.query(VulnerabilityGeneric, Workspace.id).join(
-            Workspace).filter(VulnerabilityGeneric.id == vuln_id,
-                              Workspace.name == workspace_name).first()
-
-        if vuln_workspace_check:
+        if (
+            vuln_workspace_check := db.session.query(
+                VulnerabilityGeneric, Workspace.id
+            )
+            .join(Workspace)
+            .filter(
+                VulnerabilityGeneric.id == vuln_id,
+                Workspace.name == workspace_name,
+            )
+            .first()
+        ):
             if 'file' not in request.files:
                 flask.abort(400)
             vuln = VulnerabilitySchema().dump(vuln_workspace_check[0])
@@ -800,7 +791,7 @@ class VulnerabilityView(PaginatedMixin,
 
                 }
                 if otherfield:
-                    field_filter.update({"field": otherfield})
+                    field_filter["field"] = otherfield
                 if fieldname == 'hostnames':
                     hostname_filters.append(field_filter)
                 else:
@@ -810,7 +801,7 @@ class VulnerabilityView(PaginatedMixin,
                 if or_filters:
                     res_filters.append({"or": or_filters})
                 hostname_filters += deep_hostname_filters
-            elif 'and' in search_filter:
+            else:
                 and_filters, deep_hostname_filters = self._hostname_filters(search_filter['and'])
                 if and_filters:
                     res_filters.append({"and": and_filters})
@@ -833,9 +824,10 @@ class VulnerabilityView(PaginatedMixin,
                        filters)
         vulns = vulns.filter(VulnerabilityGeneric.workspace == workspace)
         if hostname_filters:
-            or_filters = []
-            for hostname_filter in hostname_filters:
-                or_filters.append(Hostname.name == hostname_filter['val'])
+            or_filters = [
+                Hostname.name == hostname_filter['val']
+                for hostname_filter in hostname_filters
+            ]
 
             vulns_host = vulns.join(Host).join(Hostname).filter(or_(*or_filters))
             vulns = vulns_host.union(
@@ -860,20 +852,15 @@ class VulnerabilityView(PaginatedMixin,
             hostname_filters = []
             if filters:
                 filters['filters'], hostname_filters = self._hostname_filters(filters.get('filters', []))
-        except (ValidationError, JSONDecodeError) as ex:
+        except ValidationError as ex:
             logger.exception(ex)
             flask.abort(400, "Invalid filters")
 
         workspace = self._get_workspace(workspace_name)
         marshmallow_params = {'many': True, 'context': {}, 'exclude': ('_attachments', )}
         if 'group_by' not in filters:
-            offset = None
-            limit = None
-            if 'offset' in filters:
-                offset = filters.pop('offset')
-            if 'limit' in filters:
-                limit = filters.pop('limit')  # we need to remove pagination, since
-
+            offset = filters.pop('offset') if 'offset' in filters else None
+            limit = filters.pop('limit') if 'limit' in filters else None
             try:
                 vulns = self._generate_filter_query(
                     VulnerabilityGeneric,
@@ -902,10 +889,7 @@ class VulnerabilityView(PaginatedMixin,
             )
             column_names = ['count'] + [field['field'] for field in filters.get('group_by', [])]
             rows = [list(zip(column_names, row)) for row in vulns.all()]
-            vulns_data = []
-            for row in rows:
-                vulns_data.append({field[0]: field[1] for field in row})
-
+            vulns_data = [{field[0]: field[1] for field in row} for row in rows]
             return vulns_data, len(rows)
 
     @route('/<int:vuln_id>/attachment/<attachment_filename>', methods=['GET'])
@@ -923,23 +907,29 @@ class VulnerabilityView(PaginatedMixin,
           200:
             description: Ok
         """
-        vuln_workspace_check = db.session.query(VulnerabilityGeneric, Workspace.id).join(
-            Workspace).filter(VulnerabilityGeneric.id == vuln_id,
-                              Workspace.name == workspace_name).first()
-
-        if vuln_workspace_check:
-            file_obj = db.session.query(File).filter_by(object_type='vulnerability',
-                                                        object_id=vuln_id,
-                                                        filename=attachment_filename.replace(" ", "%20")).first()
-            if file_obj:
+        if (
+            vuln_workspace_check := db.session.query(
+                VulnerabilityGeneric, Workspace.id
+            )
+            .join(Workspace)
+            .filter(
+                VulnerabilityGeneric.id == vuln_id,
+                Workspace.name == workspace_name,
+            )
+            .first()
+        ):
+            if (
+                file_obj := db.session.query(File)
+                .filter_by(
+                    object_type='vulnerability',
+                    object_id=vuln_id,
+                    filename=attachment_filename.replace(" ", "%20"),
+                )
+                .first()
+            ):
                 depot = DepotManager.get()
                 depot_file = depot.get(file_obj.content.get('file_id'))
-                if depot_file.content_type.startswith('image/'):
-                    # Image content types are safe (they can't be executed like
-                    # html) so we don't have to force the download of the file
-                    as_attachment = False
-                else:
-                    as_attachment = True
+                as_attachment = not depot_file.content_type.startswith('image/')
                 return flask.send_file(
                     io.BytesIO(depot_file.read()),
                     attachment_filename=file_obj.filename,
@@ -974,10 +964,17 @@ class VulnerabilityView(PaginatedMixin,
             description: Ok
         """
         workspace = self._get_workspace(workspace_name)
-        vuln_workspace_check = db.session.query(VulnerabilityGeneric, Workspace.id).join(
-            Workspace).filter(VulnerabilityGeneric.id == vuln_id,
-                              Workspace.name == workspace.name).first()
-        if vuln_workspace_check:
+        if (
+            vuln_workspace_check := db.session.query(
+                VulnerabilityGeneric, Workspace.id
+            )
+            .join(Workspace)
+            .filter(
+                VulnerabilityGeneric.id == vuln_id,
+                Workspace.name == workspace.name,
+            )
+            .first()
+        ):
             files = db.session.query(File).filter_by(object_type='vulnerability',
                                                      object_id=vuln_id).all()
             res = {}
@@ -1000,15 +997,26 @@ class VulnerabilityView(PaginatedMixin,
             200:
               description: Ok
         """
-        vuln_workspace_check = db.session.query(VulnerabilityGeneric, Workspace.id).join(
-            Workspace).filter(
-            VulnerabilityGeneric.id == vuln_id, Workspace.name == workspace_name).first()
-
-        if vuln_workspace_check:
-            file_obj = db.session.query(File).filter_by(object_type='vulnerability',
-                                                        object_id=vuln_id,
-                                                        filename=attachment_filename).first()
-            if file_obj:
+        if (
+            vuln_workspace_check := db.session.query(
+                VulnerabilityGeneric, Workspace.id
+            )
+            .join(Workspace)
+            .filter(
+                VulnerabilityGeneric.id == vuln_id,
+                Workspace.name == workspace_name,
+            )
+            .first()
+        ):
+            if (
+                file_obj := db.session.query(File)
+                .filter_by(
+                    object_type='vulnerability',
+                    object_id=vuln_id,
+                    filename=attachment_filename,
+                )
+                .first()
+            ):
                 db.session.delete(file_obj)
                 db.session.commit()
                 depot = DepotManager.get()
@@ -1036,13 +1044,16 @@ class VulnerabilityView(PaginatedMixin,
         """
         confirmed = bool(request.args.get('confirmed'))
         filters = request.args.get('q', '{}')
-        custom_fields_columns = []
-        for custom_field in db.session.query(CustomFieldsSchema).order_by(CustomFieldsSchema.field_order):
-            custom_fields_columns.append(custom_field.field_name)
+        custom_fields_columns = [
+            custom_field.field_name
+            for custom_field in db.session.query(CustomFieldsSchema).order_by(
+                CustomFieldsSchema.field_order
+            )
+        ]
+
         if confirmed:
             if 'filters' not in filters:
-                filters = {}
-                filters['filters'] = []
+                filters = {'filters': []}
             filters['filters'].append({
                 "name": "confirmed",
                 "op": "==",
